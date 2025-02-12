@@ -1,0 +1,5 @@
+*.pyc
+*.jpg
+/backend/uploaded_pdfs
+/backend/uploaded_videos
+tesseract-ocr-w64-setup-5.5.0.20241111.exe
