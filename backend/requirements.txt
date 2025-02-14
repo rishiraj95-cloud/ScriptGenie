@@ -1,0 +1,9 @@
+fastapi
+python-multipart
+opencv-python
+pytesseract
+pdf2image
+openai==0.28.1
+python-dotenv
+uvicorn
+jira 
