@@ -17,15 +17,17 @@ class ChatGPTHelper:
         
     def verify_connection(self) -> bool:
         try:
-            # Simple test completion to verify API key
+            # Add debug logging
+            print(f"Attempting to verify ChatGPT connection with API key: {openai.api_key[:10]}...")
             response = openai.ChatCompletion.create(
                 model=self.model,
                 messages=[{"role": "user", "content": "Hello"}],
                 max_tokens=5
             )
+            print("ChatGPT connection successful")
             return True
         except Exception as e:
-            print(f"ChatGPT Connection Error: {str(e)}")
+            print(f"ChatGPT Connection Error Details: {str(e)}")
             return False
 
     def generate_response(self, messages: List[dict]) -> str:
@@ -168,3 +170,22 @@ class ChatGPTHelper:
         except Exception as e:
             print(f"Error formatting test cases: {str(e)}")
             return response  # Return original response if formatting fails 
+
+    def generate_automation_script(self, prompt: str) -> str:
+        try:
+            response = openai.ChatCompletion.create(
+                model=self.model,
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }],
+                max_tokens=2000,
+                temperature=0.7,
+                top_p=1.0,
+                frequency_penalty=0.0,
+                presence_penalty=0.0
+            )
+            return response.choices[0].message['content'].strip()
+        except Exception as e:
+            print(f"ChatGPT API error: {str(e)}")
+            raise Exception(f"Failed to generate automation script: {str(e)}") 

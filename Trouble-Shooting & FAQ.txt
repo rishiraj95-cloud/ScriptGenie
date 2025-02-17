@@ -1,0 +1,158 @@
+TROUBLE-SHOOTING & FAQ
+=====================
+
+1. Backend Connection Issues
+---------------------------
+Problem: Backend server fails to start or connect
+Root Cause: Multiple instances of the backend server running on the same port (8000)
+Symptoms:
+- ChatGPT connection fails
+- Frontend shows connection errors
+- Backend logs show port binding issues
+
+Solution:
+a) Check for and kill existing process:
+Windows:
+```batch
+netstat -ano | findstr :8000
+taskkill /PID <PID> /F
+```
+
+Linux/Mac:
+```bash
+lsof -i :8000
+kill -9 <PID>
+```
+
+b) Implemented Port Check Code:
+```python
+def is_port_in_use(port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(('localhost', port)) == 0
+
+if is_port_in_use(8000):
+    print("Warning: Port 8000 is already in use!")
+```
+
+Advanced Solution - Auto Port Management:
+```python
+def kill_existing_process(port):
+    import platform
+    import subprocess
+    
+    if platform.system() == "Windows":
+        command = f"netstat -ano | findstr :{port}"
+        try:
+            output = subprocess.check_output(command, shell=True).decode()
+            if output:
+                pid = output.strip().split()[-1]
+                subprocess.run(f"taskkill /PID {pid} /F", shell=True)
+        except:
+            pass
+    else:
+        command = f"lsof -i :{port} | grep LISTEN | awk '{{print $2}}'"
+        try:
+            pid = subprocess.check_output(command, shell=True).decode().strip()
+            if pid:
+                subprocess.run(f"kill -9 {pid}", shell=True)
+        except:
+            pass
+
+def find_free_port(start_port=8000):
+    port = start_port
+    while is_port_in_use(port):
+        port += 1
+    return port
+```
+
+2. ChatGPT Connection Issues
+---------------------------
+Problem: ChatGPT fails to connect
+Possible Causes:
+- Invalid API key
+- Expired API key
+- Network issues
+- Rate limiting
+
+Debug Steps:
+1. Check API key validity
+2. Verify network connection
+3. Check OpenAI service status
+4. Review backend logs for specific errors
+
+Debugging Code:
+```python
+# Backend (chatgpt_helper.py)
+def verify_connection(self) -> bool:
+    try:
+        print(f"Attempting to verify ChatGPT connection with API key: {openai.api_key[:10]}...")
+        response = openai.ChatCompletion.create(
+            model=self.model,
+            messages=[{"role": "user", "content": "Hello"}],
+            max_tokens=5
+        )
+        print("ChatGPT connection successful")
+        return True
+    except Exception as e:
+        print(f"ChatGPT Connection Error Details: {str(e)}")
+        return False
+
+# Frontend (App.js)
+console.log('Attempting to connect to ChatGPT...');
+console.log('Raw response status:', response.status);
+console.log('Raw response headers:', response.headers);
+```
+
+3. Common Setup Issues
+---------------------
+a) Missing Dependencies:
+Solution: Run
+```bash
+pip install -r requirements.txt
+```
+
+b) Virtual Environment Issues:
+Solution: Recreate venv
+```bash
+# Windows
+rm -rf venv
+python -m venv venv
+.\venv\Scripts\activate
+
+# Linux/Mac
+rm -rf venv
+python -m venv venv
+source venv/bin/activate
+```
+
+c) Node Modules Issues:
+Solution: Clean install
+```bash
+cd frontend
+rm -rf node_modules
+npm cache clean --force
+npm install
+```
+
+4. Performance Issues
+--------------------
+If the application becomes slow or unresponsive:
+1. Check memory usage
+2. Monitor CPU usage
+3. Review backend logs for bottlenecks
+4. Check network latency with OpenAI API
+
+5. File Processing Issues
+------------------------
+If video/PDF processing fails:
+1. Verify Tesseract OCR installation
+2. Check Poppler installation (for PDFs)
+3. Verify file permissions
+4. Check available disk space
+
+Remember to:
+- Always check backend logs for detailed error messages
+- Verify both frontend and backend are running
+- Ensure all required services (Tesseract, Poppler) are installed
+- Keep API keys updated and valid
+- Monitor system resources during heavy processing 

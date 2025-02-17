@@ -1,0 +1,18 @@
+// Initialize the browser
+var _browser = _navigateTo("https://www.storyspark.com");
+
+// View Tool Tip for Import from Image Field
+_browser._mouseOver(_link("Import from Image"));
+_assertExists(_div("tool_tip_import_from_image"));
+
+// View Tool Tip for Title Field
+_browser._mouseOver(_textbox("Title"));
+_assertExists(_div("tool_tip_title"));
+
+// View Tool Tip for Description Field
+_browser._mouseOver(_textbox("Description"));
+_assertExists(_div("tool_tip_description"));
+
+// View Tool Tip for Acceptance Criteria Field
+_browser._mouseOver(_textbox("Acceptance Criteria"));
+_assertExists(_div("tool_tip_acceptance_criteria"));

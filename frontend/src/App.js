@@ -1,5 +1,6 @@
 import logo from './logo.svg';
 import React, { useState, useEffect } from 'react';
+import DiffView from './components/DiffView';
 import './App.css';
 
 function ScriberTestCaseGenerator({
@@ -134,6 +135,10 @@ function TestCaseGeneration() {
   const [generating, setGenerating] = useState(false);
   const [savedTestCases, setSavedTestCases] = useState([]);
   const [savingTestCases, setSavingTestCases] = useState(false);
+  const [gherkinScript, setGherkinScript] = useState('');
+  const [improvementPrompt, setImprovementPrompt] = useState('');
+  const [previousGherkin, setPreviousGherkin] = useState('');
+  const [improving, setImproving] = useState(false);
 
   // Fetch saved test cases on component mount
   useEffect(() => {
@@ -209,29 +214,31 @@ function TestCaseGeneration() {
     setError(null);
     
     try {
+      console.log('Attempting to connect to ChatGPT...');
       setBackendLogs(prev => [...prev, 'Attempting to connect to ChatGPT...']);
       const response = await fetch('http://localhost:8000/api/video/verify-chatgpt', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
         },
         body: JSON.stringify({ 
           "api_key": gptApiKey 
         })
       });
       
-      console.log('Raw ChatGPT response:', response);
+      console.log('Raw response status:', response.status);
+      console.log('Raw response headers:', response.headers);
       
       if (!response.ok) {
         let errorDetail;
         try {
           const errorData = await response.json();
+          console.log('Error data:', errorData);
           errorDetail = errorData.detail;
         } catch (e) {
+          console.log('Error parsing error response:', e);
           errorDetail = `HTTP Error ${response.status}`;
         }
-        setBackendLogs(prev => [...prev, `ChatGPT Connection Error: ${errorDetail}`]);
         throw new Error(errorDetail || 'Failed to verify ChatGPT connection');
       }
       
@@ -385,6 +392,75 @@ function TestCaseGeneration() {
       setGenerating(false);
     }
   };
+
+  const handleImproveGherkin = async () => {
+    if (!improvementPrompt.trim()) {
+      setError('Please enter an improvement prompt');
+      return;
+    }
+    
+    setImproving(true);
+    setError(null);
+    setPreviousGherkin(gherkinScript);
+    
+    try {
+      const response = await fetch('http://localhost:8000/api/video/improve-gherkin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          current_script: gherkinScript,
+          improvement_prompt: improvementPrompt,
+          api_key: gptApiKey
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to improve Gherkin script');
+      }
+      
+      const data = await response.json();
+      setGherkinScript(data.script);
+      
+      // After getting improved Gherkin, update Cucumber script
+      const cucumberResponse = await fetch('http://localhost:8000/api/video/generate-automation-script', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          gherkin_script: data.script,
+          framework: selectedFramework,
+          api_key: gptApiKey,
+          script_type: 'cucumber'
+        })
+      });
+      
+      if (!cucumberResponse.ok) {
+        throw new Error('Failed to update Cucumber script');
+      }
+      
+      const cucumberData = await cucumberResponse.json();
+      setGeneratedTestCases(cucumberData.script);
+      
+    } catch (err) {
+      setError(err.message);
+      console.error('Improvement error:', err);
+    } finally {
+      setImproving(false);
+    }
+  };
+
+  useEffect(() => {
+    const savedApiKey = localStorage.getItem('gptApiKey');
+    if (savedApiKey) {
+      setGptApiKey(savedApiKey);
+    }
+    return () => {
+      // Cleanup any subscriptions or timers here
+    };
+  }, []);
 
   return (
     <div className="container">
@@ -573,17 +649,209 @@ function TestCaseGeneration() {
 }
 
 function AIEnabledAutomation() {
-  const [selectedFramework, setSelectedFramework] = useState('Cucumber');
+  const [selectedFramework, setSelectedFramework] = useState('SAHI Pro');
+  const [gptApiKey, setGptApiKey] = useState(() => localStorage.getItem('gptApiKey') || '');
+  const [isGptConnected, setIsGptConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState(null);
+  const [userStory, setUserStory] = useState('');
+  const [sahiScript, setSahiScript] = useState('');
+  const [seleniumScript, setSeleniumScript] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [savedScripts, setSavedScripts] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [backendLogs, setBackendLogs] = useState([]);
+
+  useEffect(() => {
+    const savedFramework = localStorage.getItem('selectedFramework');
+    if (savedFramework) {
+      setSelectedFramework(savedFramework);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('selectedFramework', selectedFramework);
+  }, [selectedFramework]);
+
+  const handleGptConnect = async () => {
+    if (!gptApiKey) {
+      setError('Please enter ChatGPT API Key');
+      setBackendLogs(prev => [...prev, 'Error: ChatGPT API Key is required']);
+      return;
+    }
+    
+    setConnecting(true);
+    setError(null);
+    
+    try {
+      console.log('Attempting to connect to ChatGPT...');
+      setBackendLogs(prev => [...prev, 'Attempting to connect to ChatGPT...']);
+      const response = await fetch('http://localhost:8000/api/video/verify-chatgpt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ api_key: gptApiKey })
+      });
+      
+      console.log('Raw response status:', response.status);
+      console.log('Raw response headers:', response.headers);
+      
+      if (!response.ok) {
+        throw new Error('Failed to verify ChatGPT connection');
+      }
+      
+      const data = await response.json();
+      setIsGptConnected(data.valid);
+      setBackendLogs(prev => [...prev, 'Successfully connected to ChatGPT']);
+    } catch (err) {
+      setError(err.message);
+      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+      setIsGptConnected(false);
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleGptApiKeyChange = (e) => {
+    const newValue = e.target.value;
+    setGptApiKey(newValue);
+    localStorage.setItem('gptApiKey', newValue);
+  };
+
+  const handleGenerateScript = async () => {
+    if (!isGptConnected) {
+      setError('Please connect to AI first');
+      return;
+    }
+    
+    if (!userStory.trim()) {
+      setError('Please enter a test case');
+      return;
+    }
+    
+    setGenerating(true);
+    setError(null);
+    
+    try {
+      const endpoint = selectedFramework === 'SAHI Pro' 
+        ? 'generate-sahi-script'
+        : selectedFramework === 'Selenium'
+        ? 'generate-selenium-script'
+        : null;
+      
+      if (!endpoint) {
+        throw new Error('Unsupported framework');
+      }
+
+      const response = await fetch(`http://localhost:8000/api/video/${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          test_case: userStory,
+          api_key: gptApiKey
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to generate script');
+      }
+      
+      const data = await response.json();
+      if (selectedFramework === 'SAHI Pro') {
+        setSahiScript(data.script);
+      } else if (selectedFramework === 'Selenium') {
+        setSeleniumScript(data.script);
+      }
+      
+    } catch (err) {
+      setError(err.message || 'Failed to generate script');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleSaveScript = async () => {
+    const scriptToSave = selectedFramework === 'SAHI Pro' ? sahiScript : seleniumScript;
+    
+    if (!scriptToSave) {
+      setError('No script to save');
+      return;
+    }
+    
+    setSaving(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('http://localhost:8000/api/video/save-automation-script', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          script: scriptToSave,
+          framework: selectedFramework
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save script');
+      }
+      
+      await fetchSavedScripts();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSavedScripts();
+  }, []);
+
+  const fetchSavedScripts = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/api/video/saved-automation-scripts');
+      if (!response.ok) throw new Error('Failed to fetch saved scripts');
+      const data = await response.json();
+      setSavedScripts(data.files);
+    } catch (err) {
+      console.error('Error fetching saved scripts:', err);
+      setError('Failed to load saved scripts');
+    }
+  };
 
   return (
     <div className="container">
       <div className="main-panel">
         <div className="header-with-status">
           <h1>AI Enabled Automation</h1>
-          <div className="connection-status">
-            <span className="status-indicator off">OFF</span>
+          <div className="gpt-controls">
+            <input
+              type="password"
+              placeholder="Enter ChatGPT API Key"
+              value={gptApiKey}
+              onChange={handleGptApiKeyChange}
+              className="api-key-input"
+            />
+            <button
+              onClick={handleGptConnect}
+              disabled={connecting}
+              className="connect-btn"
+            >
+              {connecting ? 'Connecting...' : 'Connect'}
+            </button>
+            <span className={`status-indicator ${isGptConnected ? 'on' : 'off'}`}>
+              {isGptConnected ? 'ON' : 'OFF'}
+            </span>
           </div>
         </div>
+
+        {error && <div className="error">{error}</div>}
+        
         <div className="automation-controls">
           <div className="framework-selection">
             <select 
@@ -591,33 +859,102 @@ function AIEnabledAutomation() {
               onChange={(e) => setSelectedFramework(e.target.value)}
               className="framework-dropdown"
             >
+              <option value="SAHI Pro">SAHI Pro</option>
               <option value="Cucumber">Cucumber</option>
               <option value="Selenium">Selenium</option>
-              <option value="SAHI Pro">SAHI Pro</option>
             </select>
-            <button className="generate-btn">Generate Automated Test</button>
-          </div>
-          
-          <div className="user-story-input">
+            
             <textarea
-              placeholder="Enter US"
+              placeholder="Enter Test Case"
+              value={userStory}
+              onChange={(e) => setUserStory(e.target.value)}
               className="us-textarea"
               rows={4}
             />
+            
+            <button
+              className="generate-btn"
+              onClick={handleGenerateScript}
+              disabled={generating || !isGptConnected}
+            >
+              {generating ? 'Generating...' : 'Generate Automated Test'}
+            </button>
           </div>
-          
-          <div className="output-section">
+
+          {selectedFramework === 'SAHI Pro' && (
             <div className="output-box">
-              <h3>Gherkin Script</h3>
+              <h3>SAHI Script Output</h3>
               <div className="script-output">
-                <pre>Gherkin Script</pre>
+                <pre className="sahi-output">
+                  {sahiScript || 'Generated SAHI script will appear here'}
+                </pre>
+                <button
+                  className="save-script-btn"
+                  onClick={handleSaveScript}
+                  disabled={!sahiScript || saving}
+                >
+                  {saving ? 'Saving...' : 'Save Script'}
+                </button>
               </div>
             </div>
-            
+          )}
+
+          {selectedFramework === 'Selenium' && (
             <div className="output-box">
-              <h3>Other Script Output</h3>
+              <h3>Selenium Test Script</h3>
               <div className="script-output">
-                <pre></pre>
+                <pre className="selenium-output">
+                  {seleniumScript || 'Generated Selenium script will appear here'}
+                </pre>
+                <button
+                  className="save-script-btn"
+                  onClick={handleSaveScript}
+                  disabled={!seleniumScript || saving}
+                >
+                  {saving ? 'Saving...' : 'Save Script'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="bottom-section">
+            <div className="saved-scripts-panel">
+              <div className="output-box">
+                <h3>Saved Scripts</h3>
+                <div className="saved-scripts">
+                  {savedScripts.length > 0 ? (
+                    <div className="script-list">
+                      {savedScripts.map((script, index) => (
+                        <div key={index} className="script-item">
+                          <button
+                            className="script-link"
+                            onClick={() => handleDownloadScript(script.name)}
+                          >
+                            {script.name}
+                          </button>
+                          <span className="script-date">{script.created}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="no-scripts">No saved scripts</div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="logs-panel">
+              <div className="output-box">
+                <h3>Backend Logs</h3>
+                <div className="logs-container">
+                  {backendLogs.length > 0 ? (
+                    backendLogs.map((log, index) => (
+                      <div key={index} className="log-entry">{log}</div>
+                    ))
+                  ) : (
+                    <div className="no-logs">No logs available</div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -628,17 +965,369 @@ function AIEnabledAutomation() {
 }
 
 function TestCaseValidator() {
+  const [testCaseInput, setTestCaseInput] = useState('Enter Test Case');
+  const [checklistResults, setChecklistResults] = useState({
+    scenarios: { present: false, count: 0 },
+    browserConfig: { present: false, count: 0 },
+    notes: { present: false },
+    regressionScenarios: { present: false }
+  });
+  const [gptApiKey, setGptApiKey] = useState(() => localStorage.getItem('validatorGptApiKey') || '');
+  const [isGptConnected, setIsGptConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState(null);
+  const [aiAnalysis, setAiAnalysis] = useState('');
+  const [generating, setGenerating] = useState(false);
+
+  const handleGptConnect = async () => {
+    if (!gptApiKey) {
+      setError('Please enter ChatGPT API Key');
+      return;
+    }
+    
+    setConnecting(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('http://localhost:8000/api/video/verify-chatgpt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          "api_key": gptApiKey 
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to verify ChatGPT connection');
+      }
+      
+      const data = await response.json();
+      
+      if (data.valid) {
+        setIsGptConnected(true);
+        localStorage.setItem('validatorGptApiKey', gptApiKey);
+        setError(null);
+      } else {
+        throw new Error('Invalid API key');
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to verify ChatGPT connection');
+      setIsGptConnected(false);
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleGptApiKeyChange = (e) => {
+    const newValue = e.target.value;
+    setGptApiKey(newValue);
+  };
+
+  const scanTestCase = (testCase) => {
+    const sections = {
+      scenarios: { present: false, count: 0 },
+      browserConfig: { present: false, count: 0 },
+      notes: { present: false },
+      regressionScenarios: { present: false }
+    };
+    
+    // Convert to lowercase and split into lines for easier scanning
+    const lines = testCase.toLowerCase().split('\n');
+    
+    let currentSection = '';
+    
+    lines.forEach(line => {
+      // Check for Scenario sections
+      if (line.includes('scenario:') || line.includes('scenario ')) {
+        sections.scenarios.present = true;
+        sections.scenarios.count++;
+      }
+      
+      // Check for Browser Configuration
+      if (line.includes('browser configuration:') || 
+          line.includes('browser config:') || 
+          line.includes('browser setup:')) {
+        sections.browserConfig.present = true;
+        sections.browserConfig.count++;
+      }
+      
+      // Check for Notes section
+      if (line.includes('notes:')) {
+        sections.notes.present = true;
+      }
+      
+      // Check for Additional Regression Scenarios
+      if (line.includes('additional regression scenarios:') || 
+          line.includes('regression scenarios:') ||
+          line.includes('regression test cases:')) {
+        sections.regressionScenarios.present = true;
+      }
+    });
+    
+    setChecklistResults(sections);
+  };
+
+  const handleTestCaseChange = (e) => {
+    const newValue = e.target.value;
+    setTestCaseInput(newValue);
+    if (newValue.trim()) {
+      scanTestCase(newValue);
+    } else {
+      // Reset checklist if input is empty
+      setChecklistResults({
+        scenarios: { present: false, count: 0 },
+        browserConfig: { present: false, count: 0 },
+        notes: { present: false },
+        regressionScenarios: { present: false }
+      });
+    }
+  };
+
+  const handleGenerateReport = async () => {
+    if (!isGptConnected) {
+      setError('Please connect to AI first');
+      return;
+    }
+    
+    if (!testCaseInput.trim()) {
+      setError('Please enter a test case to analyze');
+      return;
+    }
+    
+    setGenerating(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('http://localhost:8000/api/video/analyze-test-case', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          test_case: testCaseInput,
+          api_key: gptApiKey
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to analyze test case');
+      }
+      
+      const data = await response.json();
+      setAiAnalysis(data.analysis);
+      
+    } catch (err) {
+      setError(err.message || 'Failed to generate analysis');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleSaveScript = async () => {
+    if (!testCaseInput || testCaseInput === 'Enter Test Case') {
+      setError('Please enter a test case before saving');
+      return;
+    }
+    
+    try {
+      const response = await fetch('http://localhost:8000/api/video/save-test-case', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          test_case: testCaseInput
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save test case');
+      }
+      
+      setError(null);
+      // Optional: Show success message
+    } catch (err) {
+      setError(err.message || 'Failed to save test case');
+    }
+  };
+
   return (
     <div className="container">
       <div className="main-panel">
         <h1>Test Case Validator</h1>
-        <p>Coming soon...</p>
+        
+        {error && <div className="error">{error}</div>}
+        
+        <div className="validator-controls">
+          <div className="input-section">
+            <div className="controls-container">
+              <div className="api-input-group">
+                <input
+                  type="password"
+                  placeholder="Enter JIRA API Key"
+                  className="api-key-input"
+                />
+                <button className="connect-btn">
+                  Connect to JIRA
+                </button>
+              </div>
+              
+              <div className="api-input-group">
+                <input
+                  type="password"
+                  placeholder="Enter AI Key"
+                  className="api-key-input"
+                  value={gptApiKey}
+                  onChange={handleGptApiKeyChange}
+                />
+                <button 
+                  className="connect-btn"
+                  onClick={handleGptConnect}
+                  disabled={connecting}
+                >
+                  {connecting ? 'Connecting...' : 'Connect to AI'}
+                </button>
+                <span className={`status-indicator ${isGptConnected ? 'on' : 'off'}`}>
+                  {isGptConnected ? 'ON' : 'OFF'}
+                </span>
+              </div>
+              
+              <div className="input-group">
+                <input
+                  type="text"
+                  placeholder="JIRA Link"
+                  className="full-width-input"
+                />
+              </div>
+              
+              <div className="input-group">
+                <textarea
+                  placeholder="Enter Test Case"
+                  className="test-case-input"
+                  value={testCaseInput}
+                  onChange={handleTestCaseChange}
+                  rows={4}
+                />
+              </div>
+              
+              <div className="generate-section">
+                <button 
+                  className="generate-report-btn"
+                  onClick={handleGenerateReport}
+                  disabled={generating || !isGptConnected}
+                >
+                  {generating ? 'Analyzing...' : 'Generate Report'}
+                </button>
+              </div>
+            </div>
+
+            <div className="report-widgets">
+              <div className="report-widget">
+                <h3>Checklist Report</h3>
+                <div className="report-content">
+                  <div className="checklist">
+                    <div className="checklist-item">
+                      <span className={`checkmark ${checklistResults.scenarios.present ? 'present' : 'missing'}`}>
+                        {checklistResults.scenarios.present ? '✓' : '✗'}
+                      </span>
+                      <span className="section-name">Scenarios</span>
+                      {checklistResults.scenarios.count > 0 && (
+                        <span className="count">({checklistResults.scenarios.count})</span>
+                      )}
+                    </div>
+                    
+                    <div className="checklist-item">
+                      <span className={`checkmark ${checklistResults.browserConfig.present ? 'present' : 'missing'}`}>
+                        {checklistResults.browserConfig.present ? '✓' : '✗'}
+                      </span>
+                      <span className="section-name">Browser Configuration</span>
+                      {checklistResults.browserConfig.count > 0 && (
+                        <span className="count">({checklistResults.browserConfig.count})</span>
+                      )}
+                    </div>
+                    
+                    <div className="checklist-item">
+                      <span className={`checkmark ${checklistResults.notes.present ? 'present' : 'missing'}`}>
+                        {checklistResults.notes.present ? '✓' : '✗'}
+                      </span>
+                      <span className="section-name">Notes</span>
+                    </div>
+                    
+                    <div className="checklist-item">
+                      <span className={`checkmark ${checklistResults.regressionScenarios.present ? 'present' : 'missing'}`}>
+                        {checklistResults.regressionScenarios.present ? '✓' : '✗'}
+                      </span>
+                      <span className="section-name">Additional Regression Scenarios</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="report-widget">
+                <h3>AI Analysis</h3>
+                <div className="report-content">
+                  {aiAnalysis ? (
+                    <div className="ai-analysis">
+                      {aiAnalysis.split('\n\n').map((section, index) => {
+                        if (section.startsWith('KEY FINDINGS:')) {
+                          return (
+                            <div key={index} className="analysis-section">
+                              <div className="section-title">Key Findings</div>
+                              {section.split('\n').slice(1).map((point, i) => (
+                                point.trim() && <div key={i} className="key-point">{point.trim()}</div>
+                              ))}
+                            </div>
+                          );
+                        } else if (section.startsWith('RECOMMENDATIONS:')) {
+                          return (
+                            <div key={index} className="analysis-section">
+                              <div className="section-title">Recommendations</div>
+                              {section.split('\n').slice(1).map((point, i) => (
+                                point.trim() && <div key={i} className="recommendation">{point.trim()}</div>
+                              ))}
+                            </div>
+                          );
+                        } else if (section.startsWith('DETAILED ANALYSIS:')) {
+                          return (
+                            <div key={index} className="analysis-section">
+                              <div className="section-title">Detailed Analysis</div>
+                              <div className="analysis-text">{section.split('\n').slice(1).join('\n')}</div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })}
+                    </div>
+                  ) : (
+                    <div className="placeholder-text">
+                      AI analysis will appear here after generating the report
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <div className="save-section">
+              <button 
+                className="save-script-btn"
+                onClick={handleSaveScript}
+                disabled={!testCaseInput || testCaseInput === 'Enter Test Case'}
+              >
+                Save Script
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
 function App() {
+  const [selectedFramework, setSelectedFramework] = useState('Cucumber');
+  const [activeTab, setActiveTab] = useState('scribe');
   const [file, setFile] = useState(null);
   const [testCases, setTestCases] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -646,7 +1335,6 @@ function App() {
   const [backendLogs, setBackendLogs] = useState([]);
   const [frames, setFrames] = useState([]);
   const [isVideo, setIsVideo] = useState(false);
-  const [activeTab, setActiveTab] = useState('scribe');
 
   const formatTestCases = (testCases) => {
     if (!testCases || testCases.length === 0) return "No test cases generated";
@@ -737,7 +1425,7 @@ function App() {
   };
 
   return (
-    <div className="app-container">
+    <div className="app">
       <div className="tabs">
         <button 
           className={`tab-button ${activeTab === 'scribe' ? 'active' : ''}`}

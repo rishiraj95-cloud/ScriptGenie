@@ -21,6 +21,13 @@ FRAMES_FOLDER = "frames"
 PDF_FOLDER = "uploaded_pdfs"
 TEST_CASES_FOLDER = "saved_test_cases"
 
+# Define the folder for saving automation scripts
+AUTOMATION_SCRIPTS_FOLDER = "automation_scripts"
+
+# Create the folder if it doesn't exist
+if not os.path.exists(AUTOMATION_SCRIPTS_FOLDER):
+    os.makedirs(AUTOMATION_SCRIPTS_FOLDER)
+
 @router.post("/upload")
 async def upload_video(file: UploadFile = File(...)):
     logs = []
@@ -165,6 +172,10 @@ async def generate_test_cases(request: dict):
         if not user_story or not api_key:
             raise HTTPException(status_code=400, detail="User story and API key are required")
             
+        # Validate user story format
+        if len(user_story.strip()) < 10:
+            raise HTTPException(status_code=400, detail="User story is too short")
+            
         helper = ChatGPTHelper(api_key)
         prompt = f"""
         Generate detailed test cases for the following user story. Format each test case exactly as follows:
@@ -301,4 +312,288 @@ async def download_test_case(filename: str):
         )
     except Exception as e:
         print(f"Error downloading test case: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/generate-automation-script")
+async def generate_automation_script(request: dict):
+    try:
+        user_story = request.get('user_story')
+        framework = request.get('framework')
+        api_key = request.get('api_key')
+        script_type = request.get('script_type', 'gherkin')  # gherkin or cucumber
+        gherkin_script = request.get('gherkin_script')  # needed for cucumber generation
+        
+        if not all([user_story, framework, api_key]) and script_type == 'gherkin':
+            raise HTTPException(status_code=400, detail="User story, framework and API key are required")
+            
+        if not all([gherkin_script, framework, api_key]) and script_type == 'cucumber':
+            raise HTTPException(status_code=400, detail="Gherkin script, framework and API key are required")
+        
+        helper = ChatGPTHelper(api_key)
+        
+        if script_type == 'gherkin':
+            prompt = f"""
+            Convert the following user story into Gherkin script format.
+            Use proper Gherkin syntax with Feature, Scenario, Given, When, Then format.
+            Make sure to:
+            1. Include a clear Feature description
+            2. Break down into multiple scenarios if needed
+            3. Use proper Gherkin keywords
+            4. Include both happy path and error scenarios
+            5. Make scenarios atomic and focused
+            
+            User Story:
+            {user_story}
+            """
+        else:  # cucumber
+            prompt = f"""
+            Convert the following Gherkin script into Cucumber automation code.
+            Generate the complete implementation including:
+            1. Step definitions
+            2. Required imports
+            3. Page objects if needed
+            4. Helper methods
+            5. Proper assertions
+            
+            Gherkin Script:
+            {gherkin_script}
+            """
+        
+        generated_script = helper.generate_automation_script(prompt)
+        
+        return JSONResponse(
+            status_code=200,
+            content={"script": generated_script}
+        )
+    except Exception as e:
+        print(f"Script generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/improve-gherkin")
+async def improve_gherkin(request: dict):
+    try:
+        current_script = request.get('current_script')
+        improvement_prompt = request.get('improvement_prompt')
+        api_key = request.get('api_key')
+        
+        if not all([current_script, improvement_prompt, api_key]):
+            raise HTTPException(status_code=400, detail="Current script, improvement prompt and API key are required")
+        
+        helper = ChatGPTHelper(api_key)
+        
+        prompt = f"""
+        I have a Gherkin script that I want to improve based on the following request:
+        
+        Improvement Request: {improvement_prompt}
+        
+        Current Gherkin Script:
+        {current_script}
+        
+        Please provide an improved version of this Gherkin script that addresses the improvement request.
+        Maintain proper Gherkin syntax and ensure all scenarios are complete and valid.
+        Return only the improved Gherkin script without any additional explanations.
+        """
+        
+        improved_script = helper.generate_automation_script(prompt)
+        
+        return JSONResponse(
+            status_code=200,
+            content={"script": improved_script}
+        )
+    except Exception as e:
+        print(f"Gherkin improvement error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/analyze-test-case")
+async def analyze_test_case(request: dict):
+    try:
+        test_case = request.get('test_case')
+        api_key = request.get('api_key')
+        
+        if not all([test_case, api_key]):
+            raise HTTPException(status_code=400, detail="Test case and API key are required")
+        
+        helper = ChatGPTHelper(api_key)
+        
+        prompt = f"""
+        As a software testing expert, analyze the following test case and provide a thorough evaluation report.
+        Format your response with the following structure:
+        
+        KEY FINDINGS:
+        • [List the most critical points, each on a new line starting with •]
+        
+        DETAILED ANALYSIS:
+        Consider the following aspects:
+        1. Completeness of test steps
+        2. Clarity of expected outcomes
+        3. Test case structure and organization
+        4. Coverage of edge cases
+        5. Adherence to testing best practices
+        6. Potential improvements or missing scenarios
+        7. Overall quality assessment
+        
+        RECOMMENDATIONS:
+        • [List specific recommendations, each on a new line starting with •]
+        
+        Test Case:
+        {test_case}
+        
+        Ensure the response maintains this exact formatting with the sections clearly separated.
+        """
+        
+        analysis = helper.generate_automation_script(prompt)
+        
+        return JSONResponse(
+            status_code=200,
+            content={"analysis": analysis}
+        )
+    except Exception as e:
+        print(f"Test case analysis error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/generate-sahi-script")
+async def generate_sahi_script(request: dict):
+    try:
+        test_case = request.get('test_case')
+        api_key = request.get('api_key')
+        
+        if not all([test_case, api_key]):
+            raise HTTPException(status_code=400, detail="Test case and API key are required")
+        
+        helper = ChatGPTHelper(api_key)
+        
+        prompt = f"""
+        Convert the following test case into a SAHI Pro automation script.
+        Follow these guidelines:
+        1. Use proper SAHI Pro syntax and commands
+        2. Include necessary browser initialization
+        3. Add appropriate assertions and verifications
+        4. Handle any required waits or synchronization
+        5. Include error handling where appropriate
+        6. Add comments to explain complex logic
+        
+        Test Case:
+        {test_case}
+        
+        Generate only the SAHI script without any additional explanations.
+        """
+        
+        script = helper.generate_automation_script(prompt)
+        
+        return JSONResponse(
+            status_code=200,
+            content={"script": script}
+        )
+    except Exception as e:
+        print(f"SAHI script generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/save-automation-script")
+async def save_automation_script(request: dict):
+    try:
+        script = request.get('script')
+        framework = request.get('framework')
+        
+        if not all([script, framework]):
+            raise HTTPException(status_code=400, detail="Script and framework are required")
+        
+        # Define file extension based on framework
+        extensions = {
+            'SAHI Pro': '.sah',
+            'Selenium': '.java',
+            'Cucumber': '.feature'
+        }
+        
+        extension = extensions.get(framework)
+        if not extension:
+            raise HTTPException(status_code=400, detail="Invalid framework")
+        
+        # Generate unique filename with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"{framework.lower().replace(' ', '_')}_{timestamp}{extension}"
+        file_path = os.path.join(AUTOMATION_SCRIPTS_FOLDER, filename)
+        
+        # Save the script
+        with open(file_path, 'w') as f:
+            f.write(script)
+        
+        return JSONResponse(
+            status_code=200,
+            content={"filename": filename}
+        )
+    except Exception as e:
+        print(f"Error saving automation script: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/saved-automation-scripts")
+async def get_saved_automation_scripts():
+    try:
+        files = []
+        for filename in os.listdir(AUTOMATION_SCRIPTS_FOLDER):
+            file_path = os.path.join(AUTOMATION_SCRIPTS_FOLDER, filename)
+            if os.path.isfile(file_path):
+                files.append({
+                    "name": filename,
+                    "created": datetime.fromtimestamp(os.path.getctime(file_path)).strftime('%Y-%m-%d %H:%M:%S')
+                })
+        return JSONResponse(
+            status_code=200,
+            content={"files": sorted(files, key=lambda x: x["created"], reverse=True)}
+        )
+    except Exception as e:
+        print(f"Error getting saved scripts: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/download-automation-script/{filename}")
+async def download_automation_script(filename: str):
+    try:
+        file_path = os.path.join(AUTOMATION_SCRIPTS_FOLDER, filename)
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="Script file not found")
+            
+        return FileResponse(
+            path=file_path,
+            filename=filename,
+            media_type='text/plain'
+        )
+    except Exception as e:
+        print(f"Error downloading script: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/generate-selenium-script")
+async def generate_selenium_script(request: dict):
+    try:
+        test_case = request.get('test_case')
+        api_key = request.get('api_key')
+        
+        if not all([test_case, api_key]):
+            raise HTTPException(status_code=400, detail="Test case and API key are required")
+        
+        helper = ChatGPTHelper(api_key)
+        
+        prompt = f"""
+        Convert the following test case into a Selenium Java test script.
+        Follow these guidelines:
+        1. Use proper Selenium WebDriver commands
+        2. Include necessary imports and setup
+        3. Add appropriate assertions and verifications
+        4. Handle waits and synchronization properly
+        5. Include error handling where appropriate
+        6. Add comments to explain the test flow
+        7. Follow Java best practices
+        
+        Test Case:
+        {test_case}
+        
+        Generate only the Selenium Java script without any additional explanations.
+        """
+        
+        script = helper.generate_automation_script(prompt)
+        
+        return JSONResponse(
+            status_code=200,
+            content={"script": script}
+        )
+    except Exception as e:
+        print(f"Selenium script generation error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 
