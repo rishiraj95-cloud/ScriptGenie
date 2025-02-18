@@ -8,13 +8,14 @@ class JiraHelper:
     def __init__(self, api_key: str = None):
         self.api_key = api_key or os.getenv('JIRA_API_KEY')
         self.email = os.getenv('JIRA_EMAIL')
-        self.server = os.getenv('JIRA_SERVER')
+        self.server = os.getenv('JIRA_SERVER', 'https://technia.jira.com')
         
         if not all([self.api_key, self.email, self.server]):
             raise ValueError("Missing required JIRA configuration. Check your .env file.")
         
     def verify_connection(self) -> bool:
         try:
+            print(f"Attempting JIRA connection with server: {self.server}")
             # Initialize JIRA connection
             jira = JIRA(
                 basic_auth=(self.email, self.api_key),
