@@ -618,4 +618,50 @@ async def delete_test_cases(request: Request):
         )
     except Exception as e:
         print(f"Error deleting test cases: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/improve-test-cases")
+async def improve_test_cases(request: dict):
+    try:
+        current_test_cases = request.get('current_test_cases')
+        improvement_prompt = request.get('improvement_prompt')
+        api_key = request.get('api_key')
+        
+        if not all([current_test_cases, improvement_prompt, api_key]):
+            raise HTTPException(status_code=400, detail="Current test cases, improvement prompt and API key are required")
+        
+        helper = ChatGPTHelper(api_key)
+        
+        prompt = f"""
+        Improve the following test cases based on this instruction while maintaining the exact format:
+        {improvement_prompt}
+        
+        The output must follow this exact structure:
+        1. Start with "Browser Configuration:" and "Pre-Required Conditions:"
+        2. Each scenario must start with "Scenario Name:" followed by the scenario title
+        3. Test steps must be numbered and indented with 8 spaces
+        4. Each step must be followed by "Received Outcome:" on the next line with the same indentation
+        5. Include a "Regression Scenarios:" section with bullet points
+        6. End with a "Notes:" section with bullet points
+        
+        Current test cases:
+        {current_test_cases}
+        
+        Maintain this exact format in your response. Do not add any explanations or additional text.
+        The response should start directly with "Browser Configuration:" and maintain consistent spacing and formatting throughout.
+        """
+        
+        improved_test_cases = helper.generate_automation_script(prompt)
+        
+        # Verify format and structure
+        if not improved_test_cases.startswith("Browser Configuration:"):
+            improved_test_cases = current_test_cases
+            raise HTTPException(status_code=400, detail="Generated test cases did not match required format")
+        
+        return JSONResponse(
+            status_code=200,
+            content={"improved_test_cases": improved_test_cases}
+        )
+    except Exception as e:
+        print(f"Error improving test cases: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 

@@ -141,6 +141,10 @@ function TestCaseGeneration() {
   const [improving, setImproving] = useState(false);
   const [selectedTestCases, setSelectedTestCases] = useState([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [terminalInput, setTerminalInput] = useState('');
+  const [previousTestCase, setPreviousTestCase] = useState('');
+  const [isImproving, setIsImproving] = useState(false);
+  const [isSavedTestCasesCollapsed, setSavedTestCasesCollapsed] = useState(false);
 
   // Fetch saved test cases on component mount
   useEffect(() => {
@@ -541,6 +545,64 @@ function TestCaseGeneration() {
     }
   };
 
+  const handleImprove = async () => {
+    if (!isGptConnected) {
+      setError('Please connect to AI first');
+      setBackendLogs(prev => [...prev, 'Error: AI connection required']);
+      return;
+    }
+    
+    if (!terminalInput.trim()) {
+      setError('Please enter an improvement prompt');
+      return;
+    }
+    
+    if (!generatedTestCases) {
+      setError('No test cases to improve');
+      return;
+    }
+    
+    setIsImproving(true);
+    setError(null);
+    setPreviousTestCase(generatedTestCases);
+    
+    try {
+      const response = await fetch('http://localhost:8000/api/video/improve-test-cases', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          current_test_cases: generatedTestCases,
+          improvement_prompt: terminalInput,
+          api_key: gptApiKey
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to improve test cases');
+      }
+      
+      const data = await response.json();
+      setGeneratedTestCases(data.improved_test_cases);
+      setBackendLogs(prev => [...prev, 'Successfully improved test cases']);
+      setTerminalInput('');
+    } catch (err) {
+      setError(err.message);
+      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+    } finally {
+      setIsImproving(false);
+    }
+  };
+
+  const handleRevert = () => {
+    if (previousTestCase) {
+      setGeneratedTestCases(previousTestCase);
+      setPreviousTestCase('');
+      setBackendLogs(prev => [...prev, 'Reverted to previous version']);
+    }
+  };
+
   return (
     <div className="container">
       <div className="main-panel">
@@ -654,28 +716,61 @@ function TestCaseGeneration() {
           </div>
         </div>
 
-        {generatedTestCases && (
-          <div className="test-cases">
-            <div className="test-cases-header">
-              <h2>Generated Test Cases</h2>
-              <button
-                className="save-btn"
-                onClick={handleSaveTestCases}
-                disabled={savingTestCases}
-              >
-                {savingTestCases ? 'Saving...' : 'Save Test Case'}
-              </button>
-            </div>
-            <div className="test-case-output">
-              <pre>{generatedTestCases}</pre>
-            </div>
+        <div className="generated-test-cases">
+          <h2>Generated Test Cases</h2>
+          <div className="test-cases-header">
+            <button
+              className="save-btn"
+              onClick={handleSaveTestCases}
+              disabled={savingTestCases}
+            >
+              {savingTestCases ? 'Saving...' : 'Save Test Case'}
+            </button>
           </div>
-        )}
+          <div className="test-case-output">
+            <pre>{generatedTestCases || 'Generated test cases will appear here'}</pre>
+          </div>
+          <div className="terminal-section">
+            <div className="terminal-header">
+              <span>Terminal</span>
+              <div className="terminal-actions">
+                <button
+                  className="improve-btn"
+                  onClick={handleImprove}
+                  disabled={isImproving || !terminalInput.trim()}
+                >
+                  {isImproving ? 'Improving...' : 'Improve'}
+                </button>
+                <button
+                  className="revert-btn"
+                  onClick={handleRevert}
+                  disabled={!previousTestCase}
+                >
+                  Revert
+                </button>
+              </div>
+            </div>
+            <textarea
+              className="terminal-input"
+              value={terminalInput}
+              onChange={(e) => setTerminalInput(e.target.value)}
+              placeholder="Enter improvement prompt here..."
+              rows={3}
+            />
+          </div>
+        </div>
 
-        {/* Saved Test Cases Widget */}
         <div className="saved-test-cases">
           <div className="test-cases-header">
-            <h2>Saved Test Cases</h2>
+            <div className="header-with-toggle">
+              <button 
+                className="collapse-toggle"
+                onClick={() => setSavedTestCasesCollapsed(!isSavedTestCasesCollapsed)}
+              >
+                {isSavedTestCasesCollapsed ? '►' : '▼'}
+              </button>
+              <h2>Saved Test Cases</h2>
+            </div>
             <div className="test-cases-actions">
               <button
                 className="select-all-btn"
@@ -694,32 +789,34 @@ function TestCaseGeneration() {
             </div>
           </div>
           
-          {savedTestCases.length > 0 ? (
-            <div className="test-case-list">
-              {savedTestCases.map((testCase, index) => (
-                <div key={index} className="test-case-item">
-                  <div className="test-case-select">
-                    <input
-                      type="checkbox"
-                      checked={selectedTestCases.includes(testCase.name)}
-                      onChange={() => handleTestCaseSelect(testCase.name)}
-                    />
+          <div className={`test-cases-content ${isSavedTestCasesCollapsed ? 'collapsed' : ''}`}>
+            {savedTestCases.length > 0 ? (
+              <div className="test-case-list">
+                {savedTestCases.map((testCase, index) => (
+                  <div key={index} className="test-case-item">
+                    <div className="test-case-select">
+                      <input
+                        type="checkbox"
+                        checked={selectedTestCases.includes(testCase.name)}
+                        onChange={() => handleTestCaseSelect(testCase.name)}
+                      />
+                    </div>
+                    <span 
+                      className="test-case-link"
+                      onClick={() => handleDownloadTestCase(testCase.name)}
+                    >
+                      {testCase.name}
+                    </span>
+                    <span className="test-case-date">
+                      {testCase.created}
+                    </span>
                   </div>
-                  <span 
-                    className="test-case-link"
-                    onClick={() => handleDownloadTestCase(testCase.name)}
-                  >
-                    {testCase.name}
-                  </span>
-                  <span className="test-case-date">
-                    {testCase.created}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="no-test-cases">No saved test cases</div>
-          )}
+                ))}
+              </div>
+            ) : (
+              <div className="no-test-cases">No saved test cases</div>
+            )}
+          </div>
         </div>
 
         {showDeleteModal && (
