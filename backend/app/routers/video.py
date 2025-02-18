@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request
 from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from app.utils.video_processor import extract_frames, extract_text_from_frames
@@ -596,4 +596,26 @@ async def generate_selenium_script(request: dict):
         )
     except Exception as e:
         print(f"Selenium script generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/delete-test-cases")
+async def delete_test_cases(request: Request):
+    try:
+        filenames = await request.json()
+        if not isinstance(filenames, list):
+            raise HTTPException(status_code=400, detail="Expected list of filenames")
+        
+        deleted_files = []
+        for filename in filenames:
+            file_path = os.path.join(TEST_CASES_FOLDER, filename)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                deleted_files.append(filename)
+        
+        return JSONResponse(
+            status_code=200,
+            content={"deleted": deleted_files}
+        )
+    except Exception as e:
+        print(f"Error deleting test cases: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 

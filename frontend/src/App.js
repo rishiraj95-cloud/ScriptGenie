@@ -139,6 +139,8 @@ function TestCaseGeneration() {
   const [improvementPrompt, setImprovementPrompt] = useState('');
   const [previousGherkin, setPreviousGherkin] = useState('');
   const [improving, setImproving] = useState(false);
+  const [selectedTestCases, setSelectedTestCases] = useState([]);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Fetch saved test cases on component mount
   useEffect(() => {
@@ -462,6 +464,83 @@ function TestCaseGeneration() {
     };
   }, []);
 
+  const handleTestCaseSelect = (filename) => {
+    setSelectedTestCases(prev => {
+      if (prev.includes(filename)) {
+        return prev.filter(f => f !== filename);
+      }
+      return [...prev, filename];
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedTestCases.length === savedTestCases.length) {
+      setSelectedTestCases([]);
+    } else {
+      setSelectedTestCases(savedTestCases.map(tc => tc.name));
+    }
+  };
+
+  const handleDeleteClick = () => {
+    if (selectedTestCases.length > 0) {
+      setShowDeleteModal(true);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/api/video/delete-test-cases', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(selectedTestCases)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete test cases');
+      }
+
+      await fetchSavedTestCases();
+      setSelectedTestCases([]);
+      setShowDeleteModal(false);
+      setBackendLogs(prev => [...prev, `Successfully deleted ${selectedTestCases.length} test case(s)`]);
+    } catch (err) {
+      setError(err.message);
+      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteModal(false);
+    setSelectedTestCases([]);
+  };
+
+  const handleDownloadTestCase = async (filename) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/video/download-test-case/${filename}`);
+      if (!response.ok) {
+        throw new Error('Failed to download test case');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      setBackendLogs(prev => [...prev, `Successfully downloaded test case: ${filename}`]);
+    } catch (err) {
+      setError('Failed to download test case');
+      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+      console.error('Download error:', err);
+    }
+  };
+
   return (
     <div className="container">
       <div className="main-panel">
@@ -595,40 +674,70 @@ function TestCaseGeneration() {
 
         {/* Saved Test Cases Widget */}
         <div className="saved-test-cases">
-          <h2>Saved Test Cases</h2>
-          <div className="saved-test-cases-list">
-            {savedTestCases.length > 0 ? (
-              <table className="saved-test-cases-table">
-                <thead>
-                  <tr>
-                    <th>Test Case</th>
-                    <th>Created On</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {savedTestCases.map((file, index) => (
-                    <tr key={index} className="saved-test-case-row">
-                      <td>
-                        <a 
-                          href={`http://localhost:8000/api/video/download-test-case/${encodeURIComponent(file.name)}`}
-                          className="test-case-link"
-                          download={`TestCase_${file.date.replace(/[: ]/g, '_')}.txt`}
-                        >
-                          {`TestCase_${file.date.replace(/[: ]/g, '_')}`}
-                        </a>
-                      </td>
-                      <td className="saved-test-case-date">
-                        {file.date}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <div className="no-saved-cases">No saved test cases</div>
-            )}
+          <div className="test-cases-header">
+            <h2>Saved Test Cases</h2>
+            <div className="test-cases-actions">
+              <button
+                className="select-all-btn"
+                onClick={handleSelectAll}
+                disabled={savedTestCases.length === 0}
+              >
+                {selectedTestCases.length === savedTestCases.length ? 'Deselect All' : 'Select All'}
+              </button>
+              <button
+                className="delete-btn"
+                onClick={handleDeleteClick}
+                disabled={selectedTestCases.length === 0}
+              >
+                Delete Selected
+              </button>
+            </div>
           </div>
+          
+          {savedTestCases.length > 0 ? (
+            <div className="test-case-list">
+              {savedTestCases.map((testCase, index) => (
+                <div key={index} className="test-case-item">
+                  <div className="test-case-select">
+                    <input
+                      type="checkbox"
+                      checked={selectedTestCases.includes(testCase.name)}
+                      onChange={() => handleTestCaseSelect(testCase.name)}
+                    />
+                  </div>
+                  <span 
+                    className="test-case-link"
+                    onClick={() => handleDownloadTestCase(testCase.name)}
+                  >
+                    {testCase.name}
+                  </span>
+                  <span className="test-case-date">
+                    {testCase.created}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="no-test-cases">No saved test cases</div>
+          )}
         </div>
+
+        {showDeleteModal && (
+          <div className="modal-overlay">
+            <div className="modal-content">
+              <h3>Confirm Delete</h3>
+              <p>Are you sure you want to delete {selectedTestCases.length} test case(s)?</p>
+              <div className="modal-actions">
+                <button className="cancel-btn" onClick={handleCancelDelete}>
+                  Cancel
+                </button>
+                <button className="delete-confirm-btn" onClick={handleConfirmDelete}>
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       <div className="right-panel">
         <div className="logs-section">
