@@ -1451,6 +1451,12 @@ function App() {
         >
           Test Case Validator
         </button>
+        <button 
+          className={`tab-button ${activeTab === 'massreports' ? 'active' : ''}`}
+          onClick={() => setActiveTab('massreports')}
+        >
+          Mass Reports
+        </button>
       </div>
 
       <div className="tab-content">
@@ -1472,9 +1478,129 @@ function App() {
           <TestCaseGeneration />
         ) : activeTab === 'automation' ? (
           <AIEnabledAutomation />
-        ) : (
+        ) : activeTab === 'validator' ? (
           <TestCaseValidator />
+        ) : (
+          <MassReports />
         )}
+      </div>
+    </div>
+  );
+}
+
+function MassReports() {
+  const [jiraApiKey, setJiraApiKey] = useState(() => localStorage.getItem('jiraApiKey') || '');
+  const [aiApiKey, setAiApiKey] = useState(() => localStorage.getItem('aiApiKey') || '');
+  const [epicLink, setEpicLink] = useState('');
+  const [isJiraConnected, setIsJiraConnected] = useState(false);
+  const [isAiConnected, setIsAiConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleJiraApiKeyChange = (e) => {
+    const value = e.target.value;
+    setJiraApiKey(value);
+    localStorage.setItem('jiraApiKey', value);
+  };
+
+  const handleAiApiKeyChange = (e) => {
+    const value = e.target.value;
+    setAiApiKey(value);
+    localStorage.setItem('aiApiKey', value);
+  };
+
+  return (
+    <div className="container">
+      <div className="main-panel">
+        <h1>Mass Reports</h1>
+        {error && <div className="error">{error}</div>}
+
+        <div className="mass-reports-controls">
+          <div className="api-section">
+            <div className="api-input-group">
+              <input
+                type="password"
+                placeholder="Enter JIRA API Key"
+                value={jiraApiKey}
+                onChange={handleJiraApiKeyChange}
+                className="api-key-input"
+              />
+              <button
+                className={`connect-btn ${isJiraConnected ? 'connected' : ''}`}
+                disabled={connecting}
+              >
+                {connecting ? 'Connecting...' : 'Link to Jira'}
+              </button>
+              <span className={`status-indicator ${isJiraConnected ? 'on' : 'off'}`}>
+                {isJiraConnected ? 'ON' : 'OFF'}
+              </span>
+            </div>
+
+            <div className="api-input-group">
+              <input
+                type="password"
+                placeholder="AI API Key"
+                value={aiApiKey}
+                onChange={handleAiApiKeyChange}
+                className="api-key-input"
+              />
+              <button
+                className={`connect-btn ${isAiConnected ? 'connected' : ''}`}
+                disabled={connecting}
+              >
+                {connecting ? 'Connecting...' : 'Link to AI'}
+              </button>
+              <span className={`status-indicator ${isAiConnected ? 'on' : 'off'}`}>
+                {isAiConnected ? 'ON' : 'OFF'}
+              </span>
+            </div>
+          </div>
+
+          <div className="epic-section">
+            <div className="epic-input-group">
+              <input
+                type="text"
+                placeholder="Enter Epic Number or Epic Link"
+                value={epicLink}
+                onChange={(e) => setEpicLink(e.target.value)}
+                className="epic-input"
+              />
+              <button className="generate-report-btn">
+                Generate TC Status Report
+              </button>
+            </div>
+          </div>
+
+          <div className="reports-section">
+            <div className="report-widget">
+              <h3>Test Case Status Report</h3>
+              <div className="report-content">
+                <div className="placeholder-text">
+                  Report will be displayed here
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="actions-section">
+            <div className="action-group">
+              <button className="backfill-btn">
+                Backfill Test Cases
+              </button>
+              <div className="backfill-list-widget">
+                <h3>Backfill Status</h3>
+                <div className="list-content">
+                  <div className="placeholder-text">
+                    Backfill items will appear here
+                  </div>
+                </div>
+              </div>
+            </div>
+            <button className="push-jira-btn">
+              Push to JIRA
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -908,3 +908,120 @@ pre {
   word-wrap: break-word;
   margin: 0;
 }
+
+/* Mass Reports Styles */
+.mass-reports-controls {
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.api-section {
+  margin-bottom: 24px;
+}
+
+.epic-section {
+  margin-bottom: 24px;
+}
+
+.epic-input-group {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.epic-input {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.generate-report-btn {
+  padding: 10px 20px;
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.generate-report-btn:hover {
+  background: #218838;
+}
+
+.reports-section {
+  margin-bottom: 24px;
+}
+
+.report-widget {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  min-height: 200px;
+}
+
+.actions-section {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.action-group {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+}
+
+.backfill-btn {
+  padding: 12px 24px;
+  background: #6f42c1;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.backfill-btn:hover {
+  background: #5a32a3;
+  transform: translateY(-1px);
+}
+
+.backfill-list-widget {
+  flex: 1;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  min-height: 150px;
+}
+
+.push-jira-btn {
+  padding: 12px 24px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.push-jira-btn:hover {
+  background: #c82333;
+  transform: translateY(-1px);
+}
+
+.placeholder-text {
+  color: #6c757d;
+  text-align: center;
+  padding: 20px;
+  font-style: italic;
+}
