@@ -664,4 +664,32 @@ async def improve_test_cases(request: dict):
         )
     except Exception as e:
         print(f"Error improving test cases: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/fetch-jira-story")
+async def fetch_jira_story(request: dict):
+    try:
+        jira_link = request.get('jira_link')
+        api_key = request.get('api_key')
+        
+        if not all([jira_link, api_key]):
+            raise HTTPException(status_code=400, detail="JIRA link and API key are required")
+        
+        helper = JiraHelper(api_key)
+        
+        # Extract issue key from JIRA link
+        issue_key = jira_link.split('/')[-1]
+        
+        # Fetch user story
+        user_story = helper.get_issue_description(issue_key)
+        
+        if not user_story:
+            raise HTTPException(status_code=404, detail="Could not find user story in JIRA")
+        
+        return JSONResponse(
+            status_code=200,
+            content={"user_story": user_story}
+        )
+    except Exception as e:
+        print(f"Error fetching JIRA story: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 

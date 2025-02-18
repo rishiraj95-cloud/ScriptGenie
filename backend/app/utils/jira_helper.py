@@ -36,3 +36,16 @@ class JiraHelper:
             else:
                 print(f"JIRA Error: {error_message}")
             return False 
+
+    def get_issue_description(self, issue_key: str) -> str:
+        try:
+            jira = JIRA(
+                basic_auth=(self.email, self.api_key),
+                server=self.server
+            )
+            
+            issue = jira.issue(issue_key)
+            return issue.fields.description
+        except Exception as e:
+            print(f"Error fetching JIRA issue: {str(e)}")
+            raise e 

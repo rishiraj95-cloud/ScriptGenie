@@ -603,6 +603,68 @@ function TestCaseGeneration() {
     }
   };
 
+  const handleGenerateFromJira = async () => {
+    if (!isJiraConnected || !isGptConnected) {
+      setError('Please connect to both JIRA and AI first');
+      setBackendLogs(prev => [...prev, 'Error: Both JIRA and AI connections required']);
+      return;
+    }
+    
+    if (!jiraLink) {
+      setError('Please enter a JIRA link');
+      return;
+    }
+    
+    setGenerating(true);
+    setError(null);
+    
+    try {
+      // First fetch the user story from JIRA
+      const jiraResponse = await fetch('http://localhost:8000/api/video/fetch-jira-story', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jira_link: jiraLink,
+          api_key: jiraApiKey
+        })
+      });
+      
+      if (!jiraResponse.ok) {
+        throw new Error('Failed to fetch user story from JIRA');
+      }
+      
+      const jiraData = await jiraResponse.json();
+      setBackendLogs(prev => [...prev, 'Successfully fetched user story from JIRA']);
+      
+      // Then generate test cases using the user story
+      const generateResponse = await fetch('http://localhost:8000/api/video/generate-test-cases', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_story: jiraData.user_story,
+          api_key: gptApiKey
+        })
+      });
+      
+      if (!generateResponse.ok) {
+        throw new Error('Failed to generate test cases');
+      }
+      
+      const generateData = await generateResponse.json();
+      setGeneratedTestCases(generateData.test_cases);
+      setBackendLogs(prev => [...prev, 'Successfully generated test cases']);
+    } catch (err) {
+      setError(err.message);
+      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   return (
     <div className="container">
       <div className="main-panel">
@@ -693,7 +755,13 @@ function TestCaseGeneration() {
                 onChange={(e) => setJiraLink(e.target.value)}
                 placeholder="Enter JIRA Link"
               />
-              <button className="connect-btn">Generate US</button>
+              <button
+                className="generate-btn"
+                onClick={handleGenerateFromJira}
+                disabled={generating || !isJiraConnected || !isGptConnected}
+              >
+                {generating ? 'Generating...' : 'Generate US'}
+              </button>
             </div>
           </div>
 
