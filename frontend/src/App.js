@@ -1562,7 +1562,7 @@ function TestCaseValidator() {
                   onClick={handleJiraConnect}
                   disabled={connecting}
                 >
-                  {connecting ? 'Connecting...' : 'Connect to JIRA'}
+                  {connecting ? 'Connecting...' : 'Link to JIRA'}
                 </button>
                 <span className={`status-indicator ${isJiraConnected ? 'on' : 'off'}`}>
                   {isJiraConnected ? 'ON' : 'OFF'}
@@ -1583,6 +1583,13 @@ function TestCaseValidator() {
                   disabled={connecting}
                 >
                   {connecting ? 'Connecting...' : 'Connect to AI'}
+                </button>
+                <button
+                  className="clear-btn"
+                  onClick={handleGptClear}
+                  disabled={connecting}
+                >
+                  Clear
                 </button>
                 <span className={`status-indicator ${isGptConnected ? 'on' : 'off'}`}>
                   {isGptConnected ? 'ON' : 'OFF'}
@@ -1879,9 +1886,14 @@ function App() {
 function MassReports() {
   const [jiraApiKey, setJiraApiKey] = useState(() => localStorage.getItem('massReportsJiraApiKey') || '');
   const [isJiraConnected, setIsJiraConnected] = useState(false);
+  const [gptApiKey, setGptApiKey] = useState(() => localStorage.getItem('massReportsGptApiKey') || '');
+  const [isGptConnected, setIsGptConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState(null);
   const [backendLogs, setBackendLogs] = useState([]);
+  const [epicLink, setEpicLink] = useState('');
+  const [epicStats, setEpicStats] = useState(null);
+  const [generating, setGenerating] = useState(false);
 
   const handleJiraConnect = async () => {
     if (!jiraApiKey) {
@@ -1926,6 +1938,97 @@ function MassReports() {
     }
   };
 
+  const handleGptConnect = async () => {
+    if (!gptApiKey) {
+      setError('Please enter ChatGPT API Key');
+      setBackendLogs(prev => [...prev, 'Error: ChatGPT API Key is required']);
+      return;
+    }
+    
+    setConnecting(true);
+    setError(null);
+    
+    try {
+      setBackendLogs(prev => [...prev, 'Attempting to connect to ChatGPT...']);
+      const response = await fetch('http://localhost:8000/api/video/verify-chatgpt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ api_key: gptApiKey })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to verify ChatGPT connection');
+      }
+      
+      const data = await response.json();
+      
+      if (data.valid) {
+        setIsGptConnected(true);
+        localStorage.setItem('massReportsGptApiKey', gptApiKey);
+        setError(null);
+        setBackendLogs(prev => [...prev, 'Successfully connected to ChatGPT']);
+      } else {
+        throw new Error('Failed to connect to ChatGPT');
+      }
+    } catch (err) {
+      setError(err.message);
+      setIsGptConnected(false);
+      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleGptClear = () => {
+    setGptApiKey('');
+    setIsGptConnected(false);
+    localStorage.removeItem('massReportsGptApiKey');
+  };
+
+  const handleGenerateReport = async () => {
+    if (!isJiraConnected || !isGptConnected) {
+      setError('Please connect to both JIRA and AI first');
+      setBackendLogs(prev => [...prev, 'Error: Both JIRA and AI connections required']);
+      return;
+    }
+    
+    if (!epicLink) {
+      setError('Please enter an Epic link');
+      return;
+    }
+    
+    setGenerating(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('http://localhost:8000/api/video/fetch-epic-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          epic_link: epicLink,
+          api_key: jiraApiKey
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch epic status');
+      }
+      
+      const data = await response.json();
+      setEpicStats(data);
+      setBackendLogs(prev => [...prev, 'Successfully generated test case status report']);
+    } catch (err) {
+      setError(err.message);
+      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   return (
     <div className="container">
       <div className="main-panel">
@@ -1953,6 +2056,33 @@ function MassReports() {
                 {isJiraConnected ? 'ON' : 'OFF'}
               </span>
             </div>
+
+            <div className="api-input-group">
+              <input
+                type="password"
+                placeholder="AI API Key"
+                value={gptApiKey}
+                onChange={(e) => setGptApiKey(e.target.value)}
+                className="api-key-input"
+              />
+              <button
+                className={`connect-btn ${isGptConnected ? 'connected' : ''}`}
+                onClick={handleGptConnect}
+                disabled={connecting}
+              >
+                {connecting ? 'Connecting...' : 'Connect'}
+              </button>
+              <button
+                className="clear-btn"
+                onClick={handleGptClear}
+                disabled={connecting}
+              >
+                Clear
+              </button>
+              <span className={`status-indicator ${isGptConnected ? 'on' : 'off'}`}>
+                {isGptConnected ? 'ON' : 'OFF'}
+              </span>
+            </div>
           </div>
 
           <div className="epic-section">
@@ -1960,10 +2090,16 @@ function MassReports() {
               <input
                 type="text"
                 placeholder="Enter Epic Number or Epic Link"
+                value={epicLink}
+                onChange={(e) => setEpicLink(e.target.value)}
                 className="epic-input"
               />
-              <button className="generate-report-btn">
-                Generate TC Status Report
+              <button 
+                className="generate-report-btn"
+                onClick={handleGenerateReport}
+                disabled={generating || !isJiraConnected || !isGptConnected}
+              >
+                {generating ? 'Generating...' : 'Generate TC Status Report'}
               </button>
             </div>
           </div>
@@ -1972,9 +2108,30 @@ function MassReports() {
             <div className="report-widget">
               <h3>Test Case Status Report</h3>
               <div className="report-content">
-                <div className="placeholder-text">
-                  Report will be displayed here
-                </div>
+                {epicStats ? (
+                  <div className="epic-statistics">
+                    <div className="stat-item">
+                      <span className="stat-label">Total User Stories:</span>
+                      <span className="stat-value">{epicStats.total_stories}</span>
+                    </div>
+                    <div className="stat-item">
+                      <span className="stat-label">Stories with Code:</span>
+                      <span className="stat-value">{epicStats.stories_with_code}</span>
+                    </div>
+                    <div className="stat-item">
+                      <span className="stat-label">Stories with Test Cases:</span>
+                      <span className="stat-value">{epicStats.stories_with_tests}</span>
+                    </div>
+                    <div className="stat-item highlight">
+                      <span className="stat-label">Missing Test Cases:</span>
+                      <span className="stat-value">{epicStats.missing_test_cases}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="placeholder-text">
+                    Report will be displayed here
+                  </div>
+                )}
               </div>
             </div>
           </div>

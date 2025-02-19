@@ -49,3 +49,62 @@ class JiraHelper:
         except Exception as e:
             print(f"Error fetching JIRA issue: {str(e)}")
             raise e 
+
+    def get_epic_statistics(self, epic_key: str) -> dict:
+        try:
+            jira = JIRA(
+                basic_auth=(self.email, self.api_key),
+                server=self.server
+            )
+            
+            # First verify the epic exists
+            try:
+                epic = jira.issue(epic_key)
+                print(f"Found epic: {epic.fields.summary}")
+            except Exception as e:
+                print(f"Error finding epic: {str(e)}")
+                raise
+            
+            # Get all stories in epic
+            jql = f'issueType = "User Story" AND "Epic Link" = "{epic_key}"'
+            print(f"Executing JQL: {jql}")  # Debug log
+            
+            stories = jira.search_issues(jql, maxResults=100)  # Increase max results
+            
+            # Debug information
+            print(f"Raw stories response: {stories}")
+            print(f"Total stories found: {len(stories)}")
+            
+            stories_with_code = 0
+            stories_with_tests = 0
+            
+            for story in stories:
+                print(f"Processing story: {story.key} - Status: {story.fields.status.name}")
+                # Check for code (development status)
+                if story.fields.status.name in ['In Development', 'Done', 'In Progress', 'Resolved']:
+                    stories_with_code += 1
+                
+                # Check for test cases (subtasks)
+                subtasks = story.fields.subtasks
+                print(f"Story {story.key} has {len(subtasks)} subtasks")
+                has_test_case = any(
+                    subtask.fields.issuetype.name == 'Test Case' 
+                    for subtask in subtasks
+                )
+                if has_test_case:
+                    stories_with_tests += 1
+            
+            print(f"Found {len(stories)} stories in epic {epic_key}")
+            print(f"Stories with code: {stories_with_code}")
+            print(f"Stories with tests: {stories_with_tests}")
+            
+            return {
+                "total_stories": len(stories),
+                "stories_with_code": stories_with_code,
+                "stories_with_tests": stories_with_tests
+            }
+        except Exception as e:
+            print(f"Error getting epic statistics: {str(e)}")
+            print(f"JQL Query used: {jql}")
+            print(f"Full error details: {str(e.__dict__)}")  # More detailed error info
+            raise e 

@@ -720,4 +720,34 @@ async def fetch_jira_test_case(request: dict):
         )
     except Exception as e:
         print(f"Error fetching JIRA test case: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/fetch-epic-status")
+async def fetch_epic_status(request: dict):
+    try:
+        epic_link = request.get('epic_link')
+        api_key = request.get('api_key')
+        
+        if not all([epic_link, api_key]):
+            raise HTTPException(status_code=400, detail="Epic link and API key are required")
+        
+        helper = JiraHelper(api_key)
+        
+        # Extract epic key from JIRA link
+        epic_key = epic_link.split('/')[-1]
+        
+        # Get epic statistics
+        epic_stats = helper.get_epic_statistics(epic_key)
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "total_stories": epic_stats["total_stories"],
+                "stories_with_code": epic_stats["stories_with_code"],
+                "stories_with_tests": epic_stats["stories_with_tests"],
+                "missing_test_cases": epic_stats["stories_with_code"] - epic_stats["stories_with_tests"]
+            }
+        )
+    except Exception as e:
+        print(f"Error fetching epic status: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 
