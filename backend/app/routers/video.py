@@ -692,4 +692,32 @@ async def fetch_jira_story(request: dict):
         )
     except Exception as e:
         print(f"Error fetching JIRA story: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/fetch-jira-test-case")
+async def fetch_jira_test_case(request: dict):
+    try:
+        jira_link = request.get('jira_link')
+        api_key = request.get('api_key')
+        
+        if not all([jira_link, api_key]):
+            raise HTTPException(status_code=400, detail="JIRA link and API key are required")
+        
+        helper = JiraHelper(api_key)
+        
+        # Extract issue key from JIRA link
+        issue_key = jira_link.split('/')[-1]
+        
+        # Fetch test case content
+        test_case = helper.get_issue_description(issue_key)
+        
+        if not test_case:
+            raise HTTPException(status_code=404, detail="Could not find test case in JIRA")
+        
+        return JSONResponse(
+            status_code=200,
+            content={"test_case": test_case}
+        )
+    except Exception as e:
+        print(f"Error fetching JIRA test case: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 

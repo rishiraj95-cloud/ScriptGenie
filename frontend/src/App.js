@@ -1254,6 +1254,8 @@ function TestCaseValidator() {
   });
   const [aiAnalysis, setAiAnalysis] = useState('');
   const [generating, setGenerating] = useState(false);
+  const [jiraLink, setJiraLink] = useState('');
+  const [isValidating, setIsValidating] = useState(false);
 
   const handleJiraConnect = async () => {
     if (!jiraApiKey) {
@@ -1469,6 +1471,74 @@ function TestCaseValidator() {
     }
   };
 
+  const handleJiraTestCaseValidation = async () => {
+    if (!isJiraConnected || !isGptConnected) {
+      setError('Please connect to both JIRA and AI first');
+      setBackendLogs(prev => [...prev, 'Error: Both JIRA and AI connections required']);
+      return;
+    }
+    
+    if (!jiraLink) {
+      setError('Please enter a JIRA link');
+      return;
+    }
+    
+    setIsValidating(true);
+    setError(null);
+    
+    try {
+      // First fetch the test case from JIRA
+      const jiraResponse = await fetch('http://localhost:8000/api/video/fetch-jira-test-case', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jira_link: jiraLink,
+          api_key: jiraApiKey
+        })
+      });
+      
+      if (!jiraResponse.ok) {
+        throw new Error('Failed to fetch test case from JIRA');
+      }
+      
+      const jiraData = await jiraResponse.json();
+      const testCaseContent = jiraData.test_case;
+      
+      setBackendLogs(prev => [...prev, 'Successfully fetched test case from JIRA']);
+      
+      // Update test case input and trigger validation
+      setTestCase(testCaseContent);
+      scanTestCase(testCaseContent);
+      
+      // Generate AI analysis
+      const analysisResponse = await fetch('http://localhost:8000/api/video/analyze-test-case', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          test_case: testCaseContent,
+          api_key: gptApiKey
+        })
+      });
+      
+      if (!analysisResponse.ok) {
+        throw new Error('Failed to analyze test case');
+      }
+      
+      const analysisData = await analysisResponse.json();
+      setAiAnalysis(analysisData.analysis);
+      setBackendLogs(prev => [...prev, 'Successfully generated AI analysis']);
+    } catch (err) {
+      setError(err.message);
+      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
   return (
     <div className="container">
       <div className="main-panel">
@@ -1523,11 +1593,20 @@ function TestCaseValidator() {
                 <input
                   type="text"
                   placeholder="JIRA Link"
-                  className="full-width-input"
+                  value={jiraLink}
+                  onChange={(e) => setJiraLink(e.target.value)}
+                  className="jira-link-input"
                 />
+                <button
+                  className="generate-btn"
+                  onClick={handleJiraTestCaseValidation}
+                  disabled={isValidating || !isJiraConnected || !isGptConnected}
+                >
+                  {isValidating ? 'Validating...' : 'Generate Report from JIRA Link'}
+                </button>
               </div>
               
-              <div className="input-group">
+              <div className="test-case-section">
                 <textarea
                   placeholder="Enter Test Case"
                   className="test-case-input"
@@ -1535,16 +1614,10 @@ function TestCaseValidator() {
                   onChange={handleTestCaseChange}
                   rows={4}
                 />
-              </div>
-              
-              <div className="generate-section">
-                <button 
-                  className="generate-report-btn"
-                  onClick={handleGenerateReport}
-                  disabled={generating || !isGptConnected}
-                >
-                  {generating ? 'Analyzing...' : 'Generate Report'}
-                </button>
+                
+                <div className="validation-results">
+                  {/* ... checklist and AI analysis ... */}
+                </div>
               </div>
             </div>
 
@@ -1632,16 +1705,6 @@ function TestCaseValidator() {
                   )}
                 </div>
               </div>
-            </div>
-            
-            <div className="save-section">
-              <button 
-                className="save-script-btn"
-                onClick={handleSaveScript}
-                disabled={!testCase || testCase === 'Enter Test Case'}
-              >
-                Save Script
-              </button>
             </div>
           </div>
         </div>
