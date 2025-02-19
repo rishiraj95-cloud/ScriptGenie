@@ -288,7 +288,6 @@ function TestCaseGeneration() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
         },
         body: JSON.stringify({ 
           "api_key": jiraApiKey 
@@ -1239,23 +1238,27 @@ function AIEnabledAutomation() {
 }
 
 function TestCaseValidator() {
-  const [testCaseInput, setTestCaseInput] = useState('Enter Test Case');
-  const [checklistResults, setChecklistResults] = useState({
+  const [jiraApiKey, setJiraApiKey] = useState(() => localStorage.getItem('validatorJiraApiKey') || '');
+  const [isJiraConnected, setIsJiraConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState(null);
+  const [backendLogs, setBackendLogs] = useState([]);
+  const [gptApiKey, setGptApiKey] = useState('');
+  const [isGptConnected, setIsGptConnected] = useState(false);
+  const [testCase, setTestCase] = useState('');
+  const [checklist, setChecklist] = useState({
     scenarios: { present: false, count: 0 },
     browserConfig: { present: false, count: 0 },
     notes: { present: false },
     regressionScenarios: { present: false }
   });
-  const [gptApiKey, setGptApiKey] = useState(() => localStorage.getItem('validatorGptApiKey') || '');
-  const [isGptConnected, setIsGptConnected] = useState(false);
-  const [connecting, setConnecting] = useState(false);
-  const [error, setError] = useState(null);
   const [aiAnalysis, setAiAnalysis] = useState('');
   const [generating, setGenerating] = useState(false);
 
-  const handleGptConnect = async () => {
-    if (!gptApiKey) {
-      setError('Please enter ChatGPT API Key');
+  const handleJiraConnect = async () => {
+    if (!jiraApiKey) {
+      setError('Please enter JIRA API Key');
+      setBackendLogs(prev => [...prev, 'Error: JIRA API Key is required']);
       return;
     }
     
@@ -1263,14 +1266,56 @@ function TestCaseValidator() {
     setError(null);
     
     try {
+      setBackendLogs(prev => [...prev, 'Attempting to connect to JIRA...']);
+      const response = await fetch('http://localhost:8000/api/video/verify-jira', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ api_key: jiraApiKey })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to verify JIRA connection');
+      }
+      
+      const data = await response.json();
+      
+      if (data.valid) {
+        setIsJiraConnected(true);
+        localStorage.setItem('validatorJiraApiKey', jiraApiKey);
+        setError(null);
+        setBackendLogs(prev => [...prev, 'Successfully connected to JIRA']);
+      } else {
+        throw new Error('Failed to connect to JIRA');
+      }
+    } catch (err) {
+      setError(err.message);
+      setIsJiraConnected(false);
+      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleGptConnect = async () => {
+    if (!gptApiKey) {
+      setError('Please enter ChatGPT API Key');
+      setBackendLogs(prev => [...prev, 'Error: ChatGPT API Key is required']);
+      return;
+    }
+    
+    setConnecting(true);
+    setError(null);
+    
+    try {
+      setBackendLogs(prev => [...prev, 'Attempting to connect to ChatGPT...']);
       const response = await fetch('http://localhost:8000/api/video/verify-chatgpt', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          "api_key": gptApiKey 
-        })
+        body: JSON.stringify({ api_key: gptApiKey })
       });
       
       if (!response.ok) {
@@ -1283,20 +1328,17 @@ function TestCaseValidator() {
         setIsGptConnected(true);
         localStorage.setItem('validatorGptApiKey', gptApiKey);
         setError(null);
+        setBackendLogs(prev => [...prev, 'Successfully connected to ChatGPT']);
       } else {
         throw new Error('Invalid API key');
       }
     } catch (err) {
-      setError(err.message || 'Failed to verify ChatGPT connection');
+      setError(err.message);
       setIsGptConnected(false);
+      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
     } finally {
       setConnecting(false);
     }
-  };
-
-  const handleGptApiKeyChange = (e) => {
-    const newValue = e.target.value;
-    setGptApiKey(newValue);
   };
 
   const scanTestCase = (testCase) => {
@@ -1340,17 +1382,17 @@ function TestCaseValidator() {
       }
     });
     
-    setChecklistResults(sections);
+    setChecklist(sections);
   };
 
   const handleTestCaseChange = (e) => {
     const newValue = e.target.value;
-    setTestCaseInput(newValue);
+    setTestCase(newValue);
     if (newValue.trim()) {
       scanTestCase(newValue);
     } else {
       // Reset checklist if input is empty
-      setChecklistResults({
+      setChecklist({
         scenarios: { present: false, count: 0 },
         browserConfig: { present: false, count: 0 },
         notes: { present: false },
@@ -1365,7 +1407,7 @@ function TestCaseValidator() {
       return;
     }
     
-    if (!testCaseInput.trim()) {
+    if (!testCase.trim()) {
       setError('Please enter a test case to analyze');
       return;
     }
@@ -1380,7 +1422,7 @@ function TestCaseValidator() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          test_case: testCaseInput,
+          test_case: testCase,
           api_key: gptApiKey
         })
       });
@@ -1400,7 +1442,7 @@ function TestCaseValidator() {
   };
 
   const handleSaveScript = async () => {
-    if (!testCaseInput || testCaseInput === 'Enter Test Case') {
+    if (!testCase || testCase === 'Enter Test Case') {
       setError('Please enter a test case before saving');
       return;
     }
@@ -1412,7 +1454,7 @@ function TestCaseValidator() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          test_case: testCaseInput
+          test_case: testCase
         })
       });
       
@@ -1442,19 +1484,28 @@ function TestCaseValidator() {
                   type="password"
                   placeholder="Enter JIRA API Key"
                   className="api-key-input"
+                  value={jiraApiKey}
+                  onChange={(e) => setJiraApiKey(e.target.value)}
                 />
-                <button className="connect-btn">
-                  Connect to JIRA
+                <button 
+                  className="connect-btn"
+                  onClick={handleJiraConnect}
+                  disabled={connecting}
+                >
+                  {connecting ? 'Connecting...' : 'Connect to JIRA'}
                 </button>
+                <span className={`status-indicator ${isJiraConnected ? 'on' : 'off'}`}>
+                  {isJiraConnected ? 'ON' : 'OFF'}
+                </span>
               </div>
               
               <div className="api-input-group">
                 <input
                   type="password"
-                  placeholder="Enter AI Key"
+                  placeholder="Enter ChatGPT API Key"
                   className="api-key-input"
                   value={gptApiKey}
-                  onChange={handleGptApiKeyChange}
+                  onChange={(e) => setGptApiKey(e.target.value)}
                 />
                 <button 
                   className="connect-btn"
@@ -1480,7 +1531,7 @@ function TestCaseValidator() {
                 <textarea
                   placeholder="Enter Test Case"
                   className="test-case-input"
-                  value={testCaseInput}
+                  value={testCase}
                   onChange={handleTestCaseChange}
                   rows={4}
                 />
@@ -1503,35 +1554,35 @@ function TestCaseValidator() {
                 <div className="report-content">
                   <div className="checklist">
                     <div className="checklist-item">
-                      <span className={`checkmark ${checklistResults.scenarios.present ? 'present' : 'missing'}`}>
-                        {checklistResults.scenarios.present ? '✓' : '✗'}
+                      <span className={`checkmark ${checklist.scenarios.present ? 'present' : 'missing'}`}>
+                        {checklist.scenarios.present ? '✓' : '✗'}
                       </span>
                       <span className="section-name">Scenarios</span>
-                      {checklistResults.scenarios.count > 0 && (
-                        <span className="count">({checklistResults.scenarios.count})</span>
+                      {checklist.scenarios.count > 0 && (
+                        <span className="count">({checklist.scenarios.count})</span>
                       )}
                     </div>
                     
                     <div className="checklist-item">
-                      <span className={`checkmark ${checklistResults.browserConfig.present ? 'present' : 'missing'}`}>
-                        {checklistResults.browserConfig.present ? '✓' : '✗'}
+                      <span className={`checkmark ${checklist.browserConfig.present ? 'present' : 'missing'}`}>
+                        {checklist.browserConfig.present ? '✓' : '✗'}
                       </span>
                       <span className="section-name">Browser Configuration</span>
-                      {checklistResults.browserConfig.count > 0 && (
-                        <span className="count">({checklistResults.browserConfig.count})</span>
+                      {checklist.browserConfig.count > 0 && (
+                        <span className="count">({checklist.browserConfig.count})</span>
                       )}
                     </div>
                     
                     <div className="checklist-item">
-                      <span className={`checkmark ${checklistResults.notes.present ? 'present' : 'missing'}`}>
-                        {checklistResults.notes.present ? '✓' : '✗'}
+                      <span className={`checkmark ${checklist.notes.present ? 'present' : 'missing'}`}>
+                        {checklist.notes.present ? '✓' : '✗'}
                       </span>
                       <span className="section-name">Notes</span>
                     </div>
                     
                     <div className="checklist-item">
-                      <span className={`checkmark ${checklistResults.regressionScenarios.present ? 'present' : 'missing'}`}>
-                        {checklistResults.regressionScenarios.present ? '✓' : '✗'}
+                      <span className={`checkmark ${checklist.regressionScenarios.present ? 'present' : 'missing'}`}>
+                        {checklist.regressionScenarios.present ? '✓' : '✗'}
                       </span>
                       <span className="section-name">Additional Regression Scenarios</span>
                     </div>
@@ -1587,7 +1638,7 @@ function TestCaseValidator() {
               <button 
                 className="save-script-btn"
                 onClick={handleSaveScript}
-                disabled={!testCaseInput || testCaseInput === 'Enter Test Case'}
+                disabled={!testCase || testCase === 'Enter Test Case'}
               >
                 Save Script
               </button>
@@ -1763,24 +1814,53 @@ function App() {
 }
 
 function MassReports() {
-  const [jiraApiKey, setJiraApiKey] = useState(() => localStorage.getItem('jiraApiKey') || '');
-  const [aiApiKey, setAiApiKey] = useState(() => localStorage.getItem('aiApiKey') || '');
-  const [epicLink, setEpicLink] = useState('');
+  const [jiraApiKey, setJiraApiKey] = useState(() => localStorage.getItem('massReportsJiraApiKey') || '');
   const [isJiraConnected, setIsJiraConnected] = useState(false);
-  const [isAiConnected, setIsAiConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState(null);
+  const [backendLogs, setBackendLogs] = useState([]);
 
-  const handleJiraApiKeyChange = (e) => {
-    const value = e.target.value;
-    setJiraApiKey(value);
-    localStorage.setItem('jiraApiKey', value);
-  };
-
-  const handleAiApiKeyChange = (e) => {
-    const value = e.target.value;
-    setAiApiKey(value);
-    localStorage.setItem('aiApiKey', value);
+  const handleJiraConnect = async () => {
+    if (!jiraApiKey) {
+      setError('Please enter JIRA API Key');
+      setBackendLogs(prev => [...prev, 'Error: JIRA API Key is required']);
+      return;
+    }
+    
+    setConnecting(true);
+    setError(null);
+    
+    try {
+      setBackendLogs(prev => [...prev, 'Attempting to connect to JIRA...']);
+      const response = await fetch('http://localhost:8000/api/video/verify-jira', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ api_key: jiraApiKey })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to verify JIRA connection');
+      }
+      
+      const data = await response.json();
+      
+      if (data.valid) {
+        setIsJiraConnected(true);
+        localStorage.setItem('massReportsJiraApiKey', jiraApiKey);
+        setError(null);
+        setBackendLogs(prev => [...prev, 'Successfully connected to JIRA']);
+      } else {
+        throw new Error('Failed to connect to JIRA');
+      }
+    } catch (err) {
+      setError(err.message);
+      setIsJiraConnected(false);
+      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+    } finally {
+      setConnecting(false);
+    }
   };
 
   return (
@@ -1796,36 +1876,18 @@ function MassReports() {
                 type="password"
                 placeholder="Enter JIRA API Key"
                 value={jiraApiKey}
-                onChange={handleJiraApiKeyChange}
+                onChange={(e) => setJiraApiKey(e.target.value)}
                 className="api-key-input"
               />
               <button
                 className={`connect-btn ${isJiraConnected ? 'connected' : ''}`}
+                onClick={handleJiraConnect}
                 disabled={connecting}
               >
-                {connecting ? 'Connecting...' : 'Link to Jira'}
+                {connecting ? 'Connecting...' : 'Link to JIRA'}
               </button>
               <span className={`status-indicator ${isJiraConnected ? 'on' : 'off'}`}>
                 {isJiraConnected ? 'ON' : 'OFF'}
-              </span>
-            </div>
-
-            <div className="api-input-group">
-              <input
-                type="password"
-                placeholder="AI API Key"
-                value={aiApiKey}
-                onChange={handleAiApiKeyChange}
-                className="api-key-input"
-              />
-              <button
-                className={`connect-btn ${isAiConnected ? 'connected' : ''}`}
-                disabled={connecting}
-              >
-                {connecting ? 'Connecting...' : 'Link to AI'}
-              </button>
-              <span className={`status-indicator ${isAiConnected ? 'on' : 'off'}`}>
-                {isAiConnected ? 'ON' : 'OFF'}
               </span>
             </div>
           </div>
@@ -1835,8 +1897,6 @@ function MassReports() {
               <input
                 type="text"
                 placeholder="Enter Epic Number or Epic Link"
-                value={epicLink}
-                onChange={(e) => setEpicLink(e.target.value)}
                 className="epic-input"
               />
               <button className="generate-report-btn">
