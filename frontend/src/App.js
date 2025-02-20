@@ -940,9 +940,7 @@ function AIEnabledAutomation() {
   const [savedScripts, setSavedScripts] = useState([]);
   
   // Terminal input states
-  const [seleniumTerminalInput, setSeleniumTerminalInput] = useState('');
-  const [sahiTerminalInput, setSahiTerminalInput] = useState('');
-  const [cucumberTerminalInput, setCucumberTerminalInput] = useState('');
+  const [terminalInput, setTerminalInput] = useState('');
   
   // Previous script states
   const [previousSeleniumScript, setPreviousSeleniumScript] = useState('');
@@ -1143,23 +1141,24 @@ function AIEnabledAutomation() {
       return;
     }
     
+    // Get the appropriate state setters based on framework
     const setImproving = {
-      'selenium': setIsImprovingSelenium,
-      'sahi': setIsImprovingSahi,
-      'cucumber': setIsImprovingCucumber
-    }[scriptType];
+      'Selenium': setIsImprovingSelenium,
+      'SAHI Pro': setIsImprovingSahi,
+      'Cucumber': setIsImprovingCucumber
+    }[selectedFramework];
     
     const setPrevious = {
-      'selenium': setPreviousSeleniumScript,
-      'sahi': setPreviousSahiScript,
-      'cucumber': setPreviousCucumberScript
-    }[scriptType];
+      'Selenium': setPreviousSeleniumScript,
+      'SAHI Pro': setPreviousSahiScript,
+      'Cucumber': setPreviousCucumberScript
+    }[selectedFramework];
     
     const setScript = {
-      'selenium': setSeleniumScript,
-      'sahi': setSahiScript,
-      'cucumber': setCucumberScript
-    }[scriptType];
+      'Selenium': setSeleniumScript,
+      'SAHI Pro': setSahiScript,
+      'Cucumber': setCucumberScript
+    }[selectedFramework];
     
     setImproving(true);
     setError(null);
@@ -1173,7 +1172,7 @@ function AIEnabledAutomation() {
         body: JSON.stringify({
           script: currentScript,
           improvement_prompt: input,
-          script_type: scriptType,
+          framework: selectedFramework,
           api_key: gptApiKey
         })
       });
@@ -1186,6 +1185,7 @@ function AIEnabledAutomation() {
       setPrevious(currentScript);
       setScript(data.improved_script);
       setBackendLogs(prev => [...prev, 'Successfully improved script']);
+      setTerminalInput(''); // Clear terminal input after successful improvement
     } catch (err) {
       setError(err.message);
       setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
@@ -1196,21 +1196,21 @@ function AIEnabledAutomation() {
 
   const handleRevertScript = (scriptType) => {
     const setPrevious = {
-      'selenium': setPreviousSeleniumScript,
-      'sahi': setPreviousSahiScript,
-      'cucumber': setPreviousCucumberScript
+      'Selenium': setPreviousSeleniumScript,
+      'SAHI Pro': setPreviousSahiScript,
+      'Cucumber': setPreviousCucumberScript
     }[scriptType];
     
     const setScript = {
-      'selenium': setSeleniumScript,
-      'sahi': setSahiScript,
-      'cucumber': setCucumberScript
+      'Selenium': setSeleniumScript,
+      'SAHI Pro': setSahiScript,
+      'Cucumber': setCucumberScript
     }[scriptType];
     
     const previousScript = {
-      'selenium': previousSeleniumScript,
-      'sahi': previousSahiScript,
-      'cucumber': previousCucumberScript
+      'Selenium': previousSeleniumScript,
+      'SAHI Pro': previousSahiScript,
+      'Cucumber': previousCucumberScript
     }[scriptType];
     
     if (previousScript) {
@@ -1328,8 +1328,8 @@ function AIEnabledAutomation() {
                 <div className="terminal-buttons">
                   <button
                     onClick={() => handleImproveScript(
-                      selectedFramework.toLowerCase().replace(' ', ''),
-                      seleniumTerminalInput,
+                      selectedFramework,
+                      terminalInput,
                       selectedFramework === 'SAHI Pro' ? sahiScript :
                       selectedFramework === 'Cucumber' ? cucumberScript :
                       seleniumScript
@@ -1347,7 +1347,7 @@ function AIEnabledAutomation() {
                   </button>
                   <button
                     onClick={() => handleRevertScript(
-                      selectedFramework.toLowerCase().replace(' ', '')
+                      selectedFramework
                     )}
                     disabled={
                       selectedFramework === 'SAHI Pro' ? !previousSahiScript :
@@ -1361,8 +1361,8 @@ function AIEnabledAutomation() {
               </div>
               <textarea
                 className="terminal-input"
-                value={seleniumTerminalInput}
-                onChange={(e) => setSeleniumTerminalInput(e.target.value)}
+                value={terminalInput}
+                onChange={(e) => setTerminalInput(e.target.value)}
                 placeholder="Enter improvement prompt here..."
               />
             </div>

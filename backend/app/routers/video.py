@@ -733,4 +733,46 @@ async def fetch_epic_status(request: dict):
         )
     except Exception as e:
         print(f"Error fetching epic status: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/improve-script")
+async def improve_script(request: dict):
+    try:
+        script = request.get('script')
+        improvement_prompt = request.get('improvement_prompt')
+        framework = request.get('framework')
+        api_key = request.get('api_key')
+        
+        if not all([script, improvement_prompt, framework, api_key]):
+            raise HTTPException(status_code=400, detail="Script, improvement prompt, framework and API key are required")
+        
+        helper = ChatGPTHelper(api_key)
+        
+        prompt = f"""
+        Improve the following {framework} automation script based on this request:
+        
+        Improvement Request: {improvement_prompt}
+        
+        Current Script:
+        {script}
+        
+        Guidelines:
+        1. Maintain proper {framework} syntax and commands
+        2. Keep existing functionality intact
+        3. Add comments explaining changes
+        4. Ensure all imports and dependencies are preserved
+        5. Follow {framework} best practices
+        6. Implement the requested improvements
+        
+        Return only the improved script without any additional explanations.
+        """
+        
+        improved_script = helper.generate_automation_script(prompt)
+        
+        return JSONResponse(
+            status_code=200,
+            content={"improved_script": improved_script}
+        )
+    except Exception as e:
+        print(f"Script improvement error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 
