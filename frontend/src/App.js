@@ -1062,29 +1062,34 @@ function AIEnabledAutomation() {
     localStorage.setItem('gptApiKey', newValue);
   };
 
+  // Get current script based on selected framework
+  const getCurrentScript = () => {
+    return selectedFramework === 'SAHI Pro' ? sahiScript :
+           selectedFramework === 'Cucumber' ? cucumberScript :
+           seleniumScript;
+  };
+
   // Save script handler
-  const handleSaveScript = async (scriptType) => {
-    const scripts = {
-      'selenium': seleniumScript,
-      'sahi': sahiScript,
-      'cucumber': cucumberScript
-    };
+  const handleSaveScript = async () => {
+    const currentScript = getCurrentScript();
     
-    if (!scripts[scriptType]) {
+    if (!currentScript) {
       setError('No script to save');
       return;
     }
     
     setSaving(true);
+    setError(null);
+    
     try {
-      const response = await fetch('http://localhost:8000/api/video/save-script', {
+      const response = await fetch('http://localhost:8000/api/video/save-automation-script', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          script: scripts[scriptType],
-          script_type: scriptType
+          script: currentScript,
+          framework: selectedFramework  // Send the full framework name
         })
       });
       
@@ -1092,7 +1097,15 @@ function AIEnabledAutomation() {
         throw new Error('Failed to save script');
       }
       
-      setBackendLogs(prev => [...prev, 'Successfully saved script']);
+      const data = await response.json();
+      setBackendLogs(prev => [...prev, `Successfully saved script: ${data.filename}`]);
+      
+      // Refresh saved scripts list
+      const scriptsResponse = await fetch('http://localhost:8000/api/video/saved-automation-scripts');
+      if (scriptsResponse.ok) {
+        const scriptsData = await scriptsResponse.json();
+        setSavedScripts(scriptsData.files);
+      }
     } catch (err) {
       setError(err.message);
       setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
@@ -1101,21 +1114,23 @@ function AIEnabledAutomation() {
     }
   };
 
+  // Fetch saved scripts on component mount
   useEffect(() => {
+    const fetchSavedScripts = async () => {
+      try {
+        const response = await fetch('http://localhost:8000/api/video/saved-automation-scripts');
+        if (response.ok) {
+          const data = await response.json();
+          setSavedScripts(data.files);
+        }
+      } catch (err) {
+        console.error('Error fetching saved scripts:', err);
+        setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+      }
+    };
+    
     fetchSavedScripts();
   }, []);
-
-  const fetchSavedScripts = async () => {
-    try {
-      const response = await fetch('http://localhost:8000/api/video/saved-automation-scripts');
-      if (!response.ok) throw new Error('Failed to fetch saved scripts');
-      const data = await response.json();
-      setSavedScripts(data.files);
-    } catch (err) {
-      console.error('Error fetching saved scripts:', err);
-      setError('Failed to load saved scripts');
-    }
-  };
 
   const handleImproveScript = async (scriptType, input, currentScript) => {
     if (!isGptConnected) {
@@ -1205,6 +1220,30 @@ function AIEnabledAutomation() {
     }
   };
 
+  const handleDownloadScript = async (filename) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/video/download-automation-script/${filename}`);
+      if (!response.ok) {
+        throw new Error('Failed to download script');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      setBackendLogs(prev => [...prev, `Successfully downloaded script: ${filename}`]);
+    } catch (err) {
+      setError('Failed to download script');
+      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+    }
+  };
+
   return (
     <div className="container">
       <div className="main-panel">
@@ -1276,9 +1315,10 @@ function AIEnabledAutomation() {
               </pre>
               <button 
                 className="save-script-btn" 
-                onClick={() => handleSaveScript(selectedFramework.toLowerCase().replace(' ', ''))}
+                onClick={handleSaveScript}
+                disabled={saving || !getCurrentScript()}
               >
-                Save Script
+                {saving ? 'Saving...' : 'Save Script'}
               </button>
             </div>
 
