@@ -1,0 +1,40 @@
+// Initialize the browser
+var _browser = _sahi.openBrowser();
+
+// Navigate to the StorySpark platform
+_browser.navigate("https://www.storyspark.com/");
+
+// Select "Export" dropdown menu
+_browser.waitForElement(_select("Export")).click();
+
+// Verify that dropdown menu expands to show options - CSV, Excel, PDF
+_assertEqual(_isVisible(_div("CSV")), true);
+_assertEqual(_isVisible(_div("Excel")), true);
+_assertEqual(_isVisible(_div("PDF")), true);
+
+// Click on "CSV"
+_browser.waitForElement(_div("CSV")).click();
+
+// Verify that user stories table data is downloaded as a CSV file
+_assertEqual(_downloadedFileExists("userStories.csv"), true);
+
+// Open the downloaded CSV file
+_browser.openFile(_downloadedFilePath("userStories.csv"));
+
+// Verify that CSV file contains all user story data in a readable format
+_assertEqual(_fileContainsData("userStories.csv"), true);
+
+// Repeat the above steps for Excel and PDF
+// Excel
+_browser.waitForElement(_select("Export")).click();
+_browser.waitForElement(_div("Excel")).click();
+_assertEqual(_downloadedFileExists("userStories.xlsx"), true);
+_browser.openFile(_downloadedFilePath("userStories.xlsx"));
+_assertEqual(_fileContainsData("userStories.xlsx"), true);
+
+// PDF
+_browser.waitForElement(_select("Export")).click();
+_browser.waitForElement(_div("PDF")).click();
+_assertEqual(_downloadedFileExists("userStories.pdf"), true);
+_browser.openFile(_downloadedFilePath("userStories.pdf"));
+_assertEqual(_fileContainsData("userStories.pdf"), true);

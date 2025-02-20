@@ -145,6 +145,8 @@ function TestCaseGeneration() {
   const [previousTestCase, setPreviousTestCase] = useState('');
   const [isImproving, setIsImproving] = useState(false);
   const [isSavedTestCasesCollapsed, setSavedTestCasesCollapsed] = useState(false);
+  const [hoveredStats, setHoveredStats] = useState(null);
+  const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
 
   // Fetch saved test cases on component mount
   useEffect(() => {
@@ -922,29 +924,97 @@ function TestCaseGeneration() {
 }
 
 function AIEnabledAutomation() {
-  const [selectedFramework, setSelectedFramework] = useState('SAHI Pro');
-  const [gptApiKey, setGptApiKey] = useState(() => localStorage.getItem('gptApiKey') || '');
-  const [isGptConnected, setIsGptConnected] = useState(false);
-  const [connecting, setConnecting] = useState(false);
-  const [error, setError] = useState(null);
-  const [userStory, setUserStory] = useState('');
-  const [sahiScript, setSahiScript] = useState('');
+  // Script states
   const [seleniumScript, setSeleniumScript] = useState('');
+  const [sahiScript, setSahiScript] = useState('');
+  const [cucumberScript, setCucumberScript] = useState('');
+  const [selectedFramework, setSelectedFramework] = useState('Selenium');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [backendLogs, setBackendLogs] = useState([]);
+  const [isGptConnected, setIsGptConnected] = useState(false);
+  const [gptApiKey, setGptApiKey] = useState('');
+  const [connecting, setConnecting] = useState(false);
+  const [testCase, setTestCase] = useState('');
   const [generating, setGenerating] = useState(false);
   const [savedScripts, setSavedScripts] = useState([]);
-  const [saving, setSaving] = useState(false);
-  const [backendLogs, setBackendLogs] = useState([]);
+  
+  // Terminal input states
+  const [seleniumTerminalInput, setSeleniumTerminalInput] = useState('');
+  const [sahiTerminalInput, setSahiTerminalInput] = useState('');
+  const [cucumberTerminalInput, setCucumberTerminalInput] = useState('');
+  
+  // Previous script states
+  const [previousSeleniumScript, setPreviousSeleniumScript] = useState('');
+  const [previousSahiScript, setPreviousSahiScript] = useState('');
+  const [previousCucumberScript, setPreviousCucumberScript] = useState('');
+  
+  // Improving states
+  const [isImprovingSelenium, setIsImprovingSelenium] = useState(false);
+  const [isImprovingSahi, setIsImprovingSahi] = useState(false);
+  const [isImprovingCucumber, setIsImprovingCucumber] = useState(false);
 
-  useEffect(() => {
-    const savedFramework = localStorage.getItem('selectedFramework');
-    if (savedFramework) {
-      setSelectedFramework(savedFramework);
+  // Handle framework selection
+  const handleFrameworkChange = (e) => {
+    setSelectedFramework(e.target.value);
+  };
+
+  // Handle user story input
+  const handleUserStoryChange = (e) => {
+    setUserStory(e.target.value);
+  };
+
+  // Handle script generation
+  const handleGenerateScript = async () => {
+    if (!isGptConnected) {
+      setError('Please connect to AI first');
+      return;
     }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('selectedFramework', selectedFramework);
-  }, [selectedFramework]);
+    
+    if (!testCase) {
+      setError('Please enter a test case');
+      return;
+    }
+    
+    setGenerating(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('http://localhost:8000/api/video/generate-automation-script', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          test_case: testCase,
+          framework: selectedFramework,
+          api_key: gptApiKey
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to generate script');
+      }
+      
+      const data = await response.json();
+      
+      // Update the appropriate script based on selected framework
+      if (selectedFramework === 'SAHI Pro') {
+        setSahiScript(data.script);
+      } else if (selectedFramework === 'Cucumber') {
+        setCucumberScript(data.script);
+      } else {
+        setSeleniumScript(data.script);
+      }
+      
+      setBackendLogs(prev => [...prev, 'Successfully generated automation script']);
+    } catch (err) {
+      setError(err.message);
+      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const handleGptConnect = async () => {
     if (!gptApiKey) {
@@ -992,80 +1062,29 @@ function AIEnabledAutomation() {
     localStorage.setItem('gptApiKey', newValue);
   };
 
-  const handleGenerateScript = async () => {
-    if (!isGptConnected) {
-      setError('Please connect to AI first');
-      return;
-    }
+  // Save script handler
+  const handleSaveScript = async (scriptType) => {
+    const scripts = {
+      'selenium': seleniumScript,
+      'sahi': sahiScript,
+      'cucumber': cucumberScript
+    };
     
-    if (!userStory.trim()) {
-      setError('Please enter a test case');
-      return;
-    }
-    
-    setGenerating(true);
-    setError(null);
-    
-    try {
-      const endpoint = selectedFramework === 'SAHI Pro' 
-        ? 'generate-sahi-script'
-        : selectedFramework === 'Selenium'
-        ? 'generate-selenium-script'
-        : null;
-      
-      if (!endpoint) {
-        throw new Error('Unsupported framework');
-      }
-
-      const response = await fetch(`http://localhost:8000/api/video/${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          test_case: userStory,
-          api_key: gptApiKey
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to generate script');
-      }
-      
-      const data = await response.json();
-      if (selectedFramework === 'SAHI Pro') {
-        setSahiScript(data.script);
-      } else if (selectedFramework === 'Selenium') {
-        setSeleniumScript(data.script);
-      }
-      
-    } catch (err) {
-      setError(err.message || 'Failed to generate script');
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const handleSaveScript = async () => {
-    const scriptToSave = selectedFramework === 'SAHI Pro' ? sahiScript : seleniumScript;
-    
-    if (!scriptToSave) {
+    if (!scripts[scriptType]) {
       setError('No script to save');
       return;
     }
     
     setSaving(true);
-    setError(null);
-    
     try {
-      const response = await fetch('http://localhost:8000/api/video/save-automation-script', {
+      const response = await fetch('http://localhost:8000/api/video/save-script', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          script: scriptToSave,
-          framework: selectedFramework
+          script: scripts[scriptType],
+          script_type: scriptType
         })
       });
       
@@ -1073,9 +1092,10 @@ function AIEnabledAutomation() {
         throw new Error('Failed to save script');
       }
       
-      await fetchSavedScripts();
+      setBackendLogs(prev => [...prev, 'Successfully saved script']);
     } catch (err) {
       setError(err.message);
+      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
     } finally {
       setSaving(false);
     }
@@ -1094,6 +1114,94 @@ function AIEnabledAutomation() {
     } catch (err) {
       console.error('Error fetching saved scripts:', err);
       setError('Failed to load saved scripts');
+    }
+  };
+
+  const handleImproveScript = async (scriptType, input, currentScript) => {
+    if (!isGptConnected) {
+      setError('Please connect to AI first');
+      return;
+    }
+    
+    if (!input.trim()) {
+      setError('Please enter an improvement prompt');
+      return;
+    }
+    
+    const setImproving = {
+      'selenium': setIsImprovingSelenium,
+      'sahi': setIsImprovingSahi,
+      'cucumber': setIsImprovingCucumber
+    }[scriptType];
+    
+    const setPrevious = {
+      'selenium': setPreviousSeleniumScript,
+      'sahi': setPreviousSahiScript,
+      'cucumber': setPreviousCucumberScript
+    }[scriptType];
+    
+    const setScript = {
+      'selenium': setSeleniumScript,
+      'sahi': setSahiScript,
+      'cucumber': setCucumberScript
+    }[scriptType];
+    
+    setImproving(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('http://localhost:8000/api/video/improve-script', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          script: currentScript,
+          improvement_prompt: input,
+          script_type: scriptType,
+          api_key: gptApiKey
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to improve script');
+      }
+      
+      const data = await response.json();
+      setPrevious(currentScript);
+      setScript(data.improved_script);
+      setBackendLogs(prev => [...prev, 'Successfully improved script']);
+    } catch (err) {
+      setError(err.message);
+      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+    } finally {
+      setImproving(false);
+    }
+  };
+
+  const handleRevertScript = (scriptType) => {
+    const setPrevious = {
+      'selenium': setPreviousSeleniumScript,
+      'sahi': setPreviousSahiScript,
+      'cucumber': setPreviousCucumberScript
+    }[scriptType];
+    
+    const setScript = {
+      'selenium': setSeleniumScript,
+      'sahi': setSahiScript,
+      'cucumber': setCucumberScript
+    }[scriptType];
+    
+    const previousScript = {
+      'selenium': previousSeleniumScript,
+      'sahi': previousSahiScript,
+      'cucumber': previousCucumberScript
+    }[scriptType];
+    
+    if (previousScript) {
+      setScript(previousScript);
+      setPrevious('');
+      setBackendLogs(prev => [...prev, 'Reverted to previous version']);
     }
   };
 
@@ -1127,108 +1235,138 @@ function AIEnabledAutomation() {
         
         <div className="automation-controls">
           <div className="framework-selection">
-            <select 
-              value={selectedFramework}
-              onChange={(e) => setSelectedFramework(e.target.value)}
+            <select
               className="framework-dropdown"
+              value={selectedFramework}
+              onChange={handleFrameworkChange}
             >
+              <option value="Selenium">Selenium</option>
               <option value="SAHI Pro">SAHI Pro</option>
               <option value="Cucumber">Cucumber</option>
-              <option value="Selenium">Selenium</option>
             </select>
-            
+          </div>
+
+          <div className="user-story-input">
             <textarea
-              placeholder="Enter Test Case"
-              value={userStory}
-              onChange={(e) => setUserStory(e.target.value)}
               className="us-textarea"
-              rows={4}
+              placeholder="Enter test case here..."
+              value={testCase}
+              onChange={(e) => setTestCase(e.target.value)}
             />
-            
             <button
               className="generate-btn"
               onClick={handleGenerateScript}
               disabled={generating || !isGptConnected}
             >
-              {generating ? 'Generating...' : 'Generate Automated Test'}
+              {generating ? 'Generating...' : 'Generate Script'}
             </button>
           </div>
 
-          {selectedFramework === 'SAHI Pro' && (
-            <div className="output-box">
-              <h3>SAHI Script Output</h3>
-              <div className="script-output">
-                <pre className="sahi-output">
-                  {sahiScript || 'Generated SAHI script will appear here'}
-                </pre>
-                <button
-                  className="save-script-btn"
-                  onClick={handleSaveScript}
-                  disabled={!sahiScript || saving}
-                >
-                  {saving ? 'Saving...' : 'Save Script'}
-                </button>
-              </div>
+          <div className="script-outputs">
+            <div className="script-section">
+              <h3>
+                {selectedFramework === 'SAHI Pro' ? 'SAHI Script Output' :
+                 selectedFramework === 'Cucumber' ? 'Cucumber Output' :
+                 'Selenium Test Script'}
+              </h3>
+              <pre className="script-output">
+                {selectedFramework === 'SAHI Pro' ? (sahiScript || 'Generated SAHI script will appear here') :
+                 selectedFramework === 'Cucumber' ? (cucumberScript || 'Generated Cucumber script will appear here') :
+                 (seleniumScript || 'Generated Selenium script will appear here')}
+              </pre>
+              <button 
+                className="save-script-btn" 
+                onClick={() => handleSaveScript(selectedFramework.toLowerCase().replace(' ', ''))}
+              >
+                Save Script
+              </button>
             </div>
-          )}
 
-          {selectedFramework === 'Selenium' && (
-            <div className="output-box">
-              <h3>Selenium Test Script</h3>
-              <div className="script-output">
-                <pre className="selenium-output">
-                  {seleniumScript || 'Generated Selenium script will appear here'}
-                </pre>
-                <button
-                  className="save-script-btn"
-                  onClick={handleSaveScript}
-                  disabled={!seleniumScript || saving}
-                >
-                  {saving ? 'Saving...' : 'Save Script'}
-                </button>
+            <div className="terminal-section">
+              <div className="terminal-header">
+                <span>Terminal</span>
+                <div className="terminal-buttons">
+                  <button
+                    onClick={() => handleImproveScript(
+                      selectedFramework.toLowerCase().replace(' ', ''),
+                      seleniumTerminalInput,
+                      selectedFramework === 'SAHI Pro' ? sahiScript :
+                      selectedFramework === 'Cucumber' ? cucumberScript :
+                      seleniumScript
+                    )}
+                    disabled={
+                      selectedFramework === 'SAHI Pro' ? isImprovingSahi || !sahiScript :
+                      selectedFramework === 'Cucumber' ? isImprovingCucumber || !cucumberScript :
+                      isImprovingSelenium || !seleniumScript
+                    }
+                  >
+                    {(selectedFramework === 'SAHI Pro' && isImprovingSahi) ||
+                     (selectedFramework === 'Cucumber' && isImprovingCucumber) ||
+                     (selectedFramework === 'Selenium' && isImprovingSelenium)
+                      ? 'Improving...' : 'Improve'}
+                  </button>
+                  <button
+                    onClick={() => handleRevertScript(
+                      selectedFramework.toLowerCase().replace(' ', '')
+                    )}
+                    disabled={
+                      selectedFramework === 'SAHI Pro' ? !previousSahiScript :
+                      selectedFramework === 'Cucumber' ? !previousCucumberScript :
+                      !previousSeleniumScript
+                    }
+                  >
+                    Revert
+                  </button>
+                </div>
               </div>
+              <textarea
+                className="terminal-input"
+                value={seleniumTerminalInput}
+                onChange={(e) => setSeleniumTerminalInput(e.target.value)}
+                placeholder="Enter improvement prompt here..."
+              />
             </div>
-          )}
+          </div>
 
-          <div className="bottom-section">
-            <div className="saved-scripts-panel">
-              <div className="output-box">
-                <h3>Saved Scripts</h3>
-                <div className="saved-scripts">
-                  {savedScripts.length > 0 ? (
-                    <div className="script-list">
-                      {savedScripts.map((script, index) => (
-                        <div key={index} className="script-item">
+          <div className="saved-scripts-section">
+            <h3>Saved Scripts</h3>
+            <div className="saved-scripts-list">
+              {savedScripts.length > 0 ? (
+                <table className="saved-scripts-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Date</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {savedScripts.map((script, index) => (
+                      <tr key={index} className="saved-script-row">
+                        <td>
                           <button
                             className="script-link"
                             onClick={() => handleDownloadScript(script.name)}
                           >
                             {script.name}
                           </button>
-                          <span className="script-date">{script.created}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="no-scripts">No saved scripts</div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="logs-panel">
-              <div className="output-box">
-                <h3>Backend Logs</h3>
-                <div className="logs-container">
-                  {backendLogs.length > 0 ? (
-                    backendLogs.map((log, index) => (
-                      <div key={index} className="log-entry">{log}</div>
-                    ))
-                  ) : (
-                    <div className="no-logs">No logs available</div>
-                  )}
-                </div>
-              </div>
+                        </td>
+                        <td className="script-date">{script.created}</td>
+                        <td>
+                          <button
+                            className="download-btn"
+                            onClick={() => handleDownloadScript(script.name)}
+                          >
+                            Download
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="no-scripts">No saved scripts</div>
+              )}
             </div>
           </div>
         </div>
@@ -1256,6 +1394,8 @@ function TestCaseValidator() {
   const [generating, setGenerating] = useState(false);
   const [jiraLink, setJiraLink] = useState('');
   const [isValidating, setIsValidating] = useState(false);
+  const [hoveredStats, setHoveredStats] = useState(null);
+  const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
 
   const handleJiraConnect = async () => {
     if (!jiraApiKey) {
@@ -1578,18 +1718,11 @@ function TestCaseValidator() {
                   onChange={(e) => setGptApiKey(e.target.value)}
                 />
                 <button 
-                  className="connect-btn"
+                  className={`connect-btn ${isGptConnected ? 'connected' : ''}`}
                   onClick={handleGptConnect}
                   disabled={connecting}
                 >
                   {connecting ? 'Connecting...' : 'Connect to AI'}
-                </button>
-                <button
-                  className="clear-btn"
-                  onClick={handleGptClear}
-                  disabled={connecting}
-                >
-                  Clear
                 </button>
                 <span className={`status-indicator ${isGptConnected ? 'on' : 'off'}`}>
                   {isGptConnected ? 'ON' : 'OFF'}
@@ -1894,6 +2027,8 @@ function MassReports() {
   const [epicLink, setEpicLink] = useState('');
   const [epicStats, setEpicStats] = useState(null);
   const [generating, setGenerating] = useState(false);
+  const [hoveredStats, setHoveredStats] = useState(null);
+  const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
 
   const handleJiraConnect = async () => {
     if (!jiraApiKey) {
@@ -2112,19 +2247,60 @@ function MassReports() {
                   <div className="epic-statistics">
                     <div className="stat-item">
                       <span className="stat-label">Total User Stories:</span>
-                      <span className="stat-value">{epicStats.total_stories}</span>
+                      <span 
+                        className="stat-value clickable"
+                        onMouseEnter={(e) => {
+                          setHoveredStats({
+                            title: 'All User Stories',
+                            items: epicStats?.details?.all_stories || []
+                          });
+                          setHoverPosition({ 
+                            x: e.clientX, 
+                            y: e.clientY 
+                          });
+                        }}
+                        onMouseLeave={() => setHoveredStats(null)}
+                      >
+                        {epicStats.total_stories}
+                      </span>
                     </div>
                     <div className="stat-item">
                       <span className="stat-label">Stories with Code:</span>
-                      <span className="stat-value">{epicStats.stories_with_code}</span>
+                      <span 
+                        className="stat-value clickable"
+                        onMouseEnter={(e) => {
+                          setHoveredStats({
+                            title: 'Stories with Code',
+                            items: epicStats?.details?.stories_with_code || []
+                          });
+                          setHoverPosition({ 
+                            x: e.clientX, 
+                            y: e.clientY 
+                          });
+                        }}
+                        onMouseLeave={() => setHoveredStats(null)}
+                      >
+                        {epicStats.stories_with_code}
+                      </span>
                     </div>
                     <div className="stat-item">
                       <span className="stat-label">Stories with Test Cases:</span>
-                      <span className="stat-value">{epicStats.stories_with_tests}</span>
-                    </div>
-                    <div className="stat-item highlight">
-                      <span className="stat-label">Missing Test Cases:</span>
-                      <span className="stat-value">{epicStats.missing_test_cases}</span>
+                      <span 
+                        className="stat-value clickable"
+                        onMouseEnter={(e) => {
+                          setHoveredStats({
+                            title: 'Stories with Test Cases',
+                            items: epicStats?.details?.stories_with_tests || []
+                          });
+                          setHoverPosition({ 
+                            x: e.clientX, 
+                            y: e.clientY 
+                          });
+                        }}
+                        onMouseLeave={() => setHoveredStats(null)}
+                      >
+                        {epicStats.stories_with_tests}
+                      </span>
                     </div>
                   </div>
                 ) : (

@@ -317,47 +317,30 @@ async def download_test_case(filename: str):
 @router.post("/generate-automation-script")
 async def generate_automation_script(request: dict):
     try:
-        user_story = request.get('user_story')
+        test_case = request.get('test_case')
         framework = request.get('framework')
         api_key = request.get('api_key')
-        script_type = request.get('script_type', 'gherkin')  # gherkin or cucumber
-        gherkin_script = request.get('gherkin_script')  # needed for cucumber generation
         
-        if not all([user_story, framework, api_key]) and script_type == 'gherkin':
-            raise HTTPException(status_code=400, detail="User story, framework and API key are required")
-            
-        if not all([gherkin_script, framework, api_key]) and script_type == 'cucumber':
-            raise HTTPException(status_code=400, detail="Gherkin script, framework and API key are required")
+        if not all([test_case, framework, api_key]):
+            raise HTTPException(status_code=400, detail="Test case, framework and API key are required")
         
         helper = ChatGPTHelper(api_key)
         
-        if script_type == 'gherkin':
-            prompt = f"""
-            Convert the following user story into Gherkin script format.
-            Use proper Gherkin syntax with Feature, Scenario, Given, When, Then format.
-            Make sure to:
-            1. Include a clear Feature description
-            2. Break down into multiple scenarios if needed
-            3. Use proper Gherkin keywords
-            4. Include both happy path and error scenarios
-            5. Make scenarios atomic and focused
-            
-            User Story:
-            {user_story}
-            """
-        else:  # cucumber
-            prompt = f"""
-            Convert the following Gherkin script into Cucumber automation code.
-            Generate the complete implementation including:
-            1. Step definitions
-            2. Required imports
-            3. Page objects if needed
-            4. Helper methods
-            5. Proper assertions
-            
-            Gherkin Script:
-            {gherkin_script}
-            """
+        prompt = f"""
+        Convert the following test case into an automation script using {framework}.
+        Follow these guidelines:
+        1. Use proper {framework} syntax and commands
+        2. Include necessary browser initialization
+        3. Add appropriate assertions and verifications
+        4. Handle any required waits or synchronization
+        5. Include error handling where appropriate
+        6. Add comments to explain complex logic
+        
+        Test Case:
+        {test_case}
+        
+        Generate only the {framework} script without any additional explanations.
+        """
         
         generated_script = helper.generate_automation_script(prompt)
         
