@@ -1062,9 +1062,12 @@ function AIEnabledAutomation() {
 
   // Get current script based on selected framework
   const getCurrentScript = () => {
-    return selectedFramework === 'SAHI Pro' ? sahiScript :
-           selectedFramework === 'Cucumber' ? cucumberScript :
-           seleniumScript;
+    const script = selectedFramework === 'SAHI Pro' ? sahiScript :
+                   selectedFramework === 'Cucumber' ? cucumberScript :
+                   seleniumScript;
+                 
+    // Trim any leading/trailing ~~~ or ``` markers
+    return script ? script.replace(/^(~~~|```)\s*python?\s*|[\s\n]*(~~~|```)$/g, '').trim() : '';
   };
 
   // Save script handler
@@ -1311,7 +1314,7 @@ function AIEnabledAutomation() {
               <pre className="script-output">
                 {selectedFramework === 'SAHI Pro' ? (sahiScript || 'Generated SAHI script will appear here') :
                  selectedFramework === 'Cucumber' ? (cucumberScript || 'Generated Cucumber script will appear here') :
-                 (seleniumScript || 'Generated Selenium script will appear here')}
+                 (getCurrentScript() || 'Generated Selenium script will appear here')}
               </pre>
               <button 
                 className="save-script-btn" 

@@ -1,0 +1,147 @@
+How to Switch AI Providers in the Application
+===========================================
+
+This guide explains how to modify the application to use a different AI provider instead of ChatGPT.
+
+1. Create New AI Helper Class
+----------------------------
+Create a new file in backend/app/utils/ (e.g., new_ai_helper.py) that implements the same interface as ChatGPTHelper:
+
+```python
+class NewAIHelper:
+    def __init__(self, api_key: str = None):
+        self.api_key = api_key
+        # Add any provider-specific initialization
+        
+    def verify_connection(self) -> bool:
+        # Implement connection verification
+        try:
+            # Test connection to new AI provider
+            return True
+        except Exception as e:
+            print(f"Connection Error: {str(e)}")
+            return False
+            
+    def generate_automation_script(self, prompt: str) -> str:
+        # Implement script generation using new AI provider
+        try:
+            # Convert prompt to provider-specific format
+            # Make API call to new provider
+            # Return generated script
+            return generated_script
+        except Exception as e:
+            raise Exception(f"Generation failed: {str(e)}")
+```
+
+2. Update Environment Variables
+-----------------------------
+In backend/.env:
+
+```
+# Comment out or remove ChatGPT variables
+# OPENAI_API_KEY=your_key
+
+# Add new provider variables
+NEW_AI_PROVIDER_KEY=your_key
+NEW_AI_PROVIDER_ENDPOINT=https://api.newprovider.com
+```
+
+3. Update Backend Endpoints
+-------------------------
+In backend/app/routers/video.py:
+
+```python
+- from app.utils.chatgpt_helper import ChatGPTHelper
++ from app.utils.new_ai_helper import NewAIHelper
+
+@router.post("/verify-chatgpt")  # Consider renaming endpoint
+async def verify_ai(request: dict):
+    try:
+        api_key = request.get('api_key')
+-       helper = ChatGPTHelper(api_key)
++       helper = NewAIHelper(api_key)
+        # Rest remains same
+```
+
+4. Update Frontend API Calls
+--------------------------
+No changes needed if you maintain the same endpoint structure.
+If endpoint names change:
+
+```javascript
+// In frontend/src/App.js
+const handleGptConnect = async () => {
+    try {
+-       const response = await fetch('.../verify-chatgpt'
++       const response = await fetch('.../verify-ai'
+        // Rest remains same
+    }
+}
+```
+
+5. Testing Checklist
+------------------
+1. Test connection verification
+2. Test script generation
+3. Test script improvement
+4. Verify error handling
+5. Check response formats match
+6. Validate all features work:
+   - Test case generation
+   - Script improvement
+   - Different frameworks (Selenium, SAHI, Cucumber)
+
+6. Provider-Specific Considerations
+--------------------------------
+1. Rate Limiting:
+   - Implement appropriate delays
+   - Add retry logic if needed
+   - Handle quota errors
+
+2. Response Format:
+   - Ensure consistent output format
+   - Add response parsing if needed
+   - Handle provider-specific errors
+
+3. Prompt Engineering:
+   - Adjust prompts for new provider
+   - Test different prompt structures
+   - Document working prompts
+
+7. Fallback Strategy
+------------------
+Consider implementing a fallback mechanism:
+
+```python
+class AIProvider:
+    def __init__(self):
+        self.primary = NewAIHelper()
+        self.fallback = ChatGPTHelper()
+    
+    def generate_script(self, prompt):
+        try:
+            return self.primary.generate_automation_script(prompt)
+        except Exception:
+            return self.fallback.generate_automation_script(prompt)
+```
+
+8. Documentation Updates
+---------------------
+1. Update API documentation
+2. Update environment variable documentation
+3. Update deployment guides
+4. Update troubleshooting guides
+
+9. Performance Monitoring
+----------------------
+1. Add logging for new provider
+2. Track response times
+3. Monitor error rates
+4. Set up alerts
+
+Remember:
+- Keep the ChatGPT implementation as reference
+- Test thoroughly before deployment
+- Consider gradual rollout
+- Monitor costs and usage
+- Keep error handling consistent 
