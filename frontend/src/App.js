@@ -148,6 +148,10 @@ function TestCaseGeneration() {
   const [hoveredStats, setHoveredStats] = useState(null);
   const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
   const [jiraTestCaseLink, setJiraTestCaseLink] = useState('');
+  const [showPushModal, setShowPushModal] = useState(false);
+  const [userStoryLink, setUserStoryLink] = useState('');
+  const [isPushing, setIsPushing] = useState(false);
+  const [selectedFramework, setSelectedFramework] = useState('');
 
   // Add style for push to JIRA button
   const pushToJiraButtonStyle = {
@@ -167,6 +171,29 @@ function TestCaseGeneration() {
     letterSpacing: '0.5px',
     position: 'relative',
     overflow: 'hidden'
+  };
+
+  // Style for modal overlay
+  const modalOverlayStyle = {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000
+  };
+
+  // Style for modal content
+  const modalContentStyle = {
+    backgroundColor: 'white',
+    padding: '20px',
+    borderRadius: '8px',
+    width: '400px',
+    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)'
   };
 
   // Fetch saved test cases on component mount
@@ -734,6 +761,67 @@ function TestCaseGeneration() {
     }
   };
 
+  const handlePushToJira = async () => {
+    if (!userStoryLink) {
+      setError('Enter a valid User Story');
+      return;
+    }
+    
+    setIsPushing(true);
+    setError(null);
+    
+    try {
+      // First fetch user story details to get title
+      const storyResponse = await fetch('http://localhost:8000/api/video/get-user-story', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jira_link: userStoryLink,
+          api_key: jiraApiKey
+        })
+      });
+      
+      if (!storyResponse.ok) {
+        throw new Error('Failed to fetch user story details');
+      }
+      
+      const storyData = await storyResponse.json();
+      
+      // Create and push test case
+      const pushResponse = await fetch('http://localhost:8000/api/video/push-test-case', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_story_key: storyData.key,
+          project_key: storyData.projectKey,
+          user_story_title: storyData.title,
+          test_case_content: generatedTestCases,
+          api_key: jiraApiKey
+        })
+      });
+      
+      if (!pushResponse.ok) {
+        throw new Error('Failed to push test case to JIRA');
+      }
+      
+      setBackendLogs(prev => [...prev, 'Successfully pushed test case to JIRA']);
+      setShowPushModal(false);
+    } catch (err) {
+      setError(err.message);
+      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+    } finally {
+      setIsPushing(false);
+    }
+  };
+
+  const handleUserStoryChange = (e) => {
+    setUserStory(e.target.value);
+  };
+
   return (
     <div className="container">
       <div className="main-panel">
@@ -882,29 +970,10 @@ function TestCaseGeneration() {
               {savingTestCases ? 'Saving...' : 'Save Test Case'}
             </button>
             <button
-              style={pushToJiraButtonStyle}
-              onMouseOver={(e) => {
-                e.target.style.backgroundColor = '#0747A6';
-                e.target.style.transform = 'translateY(-2px)';
-                e.target.style.boxShadow = '0 6px 12px rgba(0, 82, 204, 0.3)';
-              }}
-              onMouseOut={(e) => {
-                e.target.style.backgroundColor = '#0052CC';
-                e.target.style.transform = 'translateY(0)';
-                e.target.style.boxShadow = '0 3px 6px rgba(0, 82, 204, 0.2)';
-              }}
+              className="push-jira-btn"
+              onClick={() => setShowPushModal(true)}
               disabled={!isJiraConnected || !generatedTestCases}
             >
-              <svg 
-                width="16" 
-                height="16" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2"
-              >
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-              </svg>
               Push Test Case to JIRA
             </button>
           </div>
@@ -1011,6 +1080,61 @@ function TestCaseGeneration() {
                 </button>
                 <button className="delete-confirm-btn" onClick={handleConfirmDelete}>
                   Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showPushModal && (
+          <div 
+            style={modalOverlayStyle}
+            onClick={() => setShowPushModal(false)}
+          >
+            <div 
+              style={modalContentStyle}
+              onClick={e => e.stopPropagation()}
+            >
+              <h3>Push Test Case to JIRA</h3>
+              <input
+                type="text"
+                value={userStoryLink}
+                onChange={(e) => setUserStoryLink(e.target.value)}
+                placeholder="Enter User Story to Link with Test Case"
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  marginBottom: '15px',
+                  borderRadius: '4px',
+                  border: '1px solid #ddd'
+                }}
+              />
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={handlePushToJira}
+                  disabled={isPushing}
+                  style={{
+                    backgroundColor: '#36B37E',  // Green color
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {isPushing ? 'Pushing...' : 'Push'}
+                </button>
+                <button
+                  onClick={() => setShowPushModal(false)}
+                  style={{
+                    backgroundColor: '#EBECF0',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
                 </button>
               </div>
             </div>
@@ -2540,8 +2664,8 @@ function MassReports() {
                 </div>
               </div>
             </div>
-            <button className="push-jira-btn">
-              Push to JIRA
+            <button className="push-jira-btn" onClick={() => setShowPushModal(true)} disabled={!isJiraConnected || !generatedTestCases}>
+              Push Test Case to JIRA
             </button>
           </div>
         </div>

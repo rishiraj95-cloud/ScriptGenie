@@ -775,4 +775,62 @@ async def improve_script(request: dict):
         )
     except Exception as e:
         print(f"Script improvement error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/get-user-story")
+async def get_user_story(request: dict):
+    try:
+        jira_link = request.get('jira_link')
+        api_key = request.get('api_key')
+        
+        if not all([jira_link, api_key]):
+            raise HTTPException(status_code=400, detail="JIRA link and API key are required")
+        
+        helper = JiraHelper(api_key)
+        
+        # Extract issue key from JIRA link
+        issue_key = jira_link.split('/')[-1]
+        
+        # Get user story details
+        story_details = helper.get_story_details(issue_key)
+        
+        return JSONResponse(
+            status_code=200,
+            content=story_details
+        )
+    except Exception as e:
+        print(f"Error fetching user story details: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/push-test-case")
+async def push_test_case(request: dict):
+    try:
+        user_story_key = request.get('user_story_key')
+        project_key = request.get('project_key')
+        user_story_title = request.get('user_story_title')
+        test_case_content = request.get('test_case_content')
+        api_key = request.get('api_key')
+        
+        if not all([user_story_key, project_key, user_story_title, test_case_content, api_key]):
+            raise HTTPException(
+                status_code=400, 
+                detail="User story key, project key, title, test case content and API key are required"
+            )
+        
+        helper = JiraHelper(api_key)
+        
+        # Create test case and link it to user story
+        test_case = helper.create_test_case(
+            project_key=project_key,
+            summary=f"Test Case: {user_story_title}",
+            description=test_case_content,
+            parent_key=user_story_key
+        )
+        
+        return JSONResponse(
+            status_code=200,
+            content={"test_case_key": test_case.key}
+        )
+    except Exception as e:
+        print(f"Error pushing test case: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 

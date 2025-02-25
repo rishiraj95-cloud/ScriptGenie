@@ -147,3 +147,45 @@ class JiraHelper:
         
         # Add more formatting as needed
         return formatted 
+
+    def get_story_details(self, issue_key: str) -> dict:
+        """Get user story details including project and title"""
+        try:
+            jira = JIRA(
+                basic_auth=(self.email, self.api_key),
+                server=self.server
+            )
+            
+            issue = jira.issue(issue_key)
+            
+            return {
+                "key": issue.key,
+                "projectKey": issue.fields.project.key,
+                "title": issue.fields.summary,
+                "description": issue.fields.description
+            }
+        except Exception as e:
+            print(f"Error getting story details: {str(e)}")
+            raise e
+
+    def create_test_case(self, project_key: str, summary: str, description: str, parent_key: str) -> any:
+        """Create a test case as a subtask of a user story"""
+        try:
+            jira = JIRA(
+                basic_auth=(self.email, self.api_key),
+                server=self.server
+            )
+            
+            # Create test case issue
+            test_case = jira.create_issue(
+                project=project_key,
+                summary=summary,
+                description=description,
+                issuetype={'name': 'Test Case'},
+                parent={'key': parent_key}
+            )
+            
+            return test_case
+        except Exception as e:
+            print(f"Error creating test case: {str(e)}")
+            raise e 
