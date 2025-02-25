@@ -692,7 +692,7 @@ async def fetch_jira_test_case(request: dict):
         issue_key = jira_link.split('/')[-1]
         
         # Fetch test case content
-        test_case = helper.get_issue_description(issue_key)
+        test_case = helper.get_test_case(issue_key)
         
         if not test_case:
             raise HTTPException(status_code=404, detail="Could not find test case in JIRA")

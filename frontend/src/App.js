@@ -147,6 +147,7 @@ function TestCaseGeneration() {
   const [isSavedTestCasesCollapsed, setSavedTestCasesCollapsed] = useState(false);
   const [hoveredStats, setHoveredStats] = useState(null);
   const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
+  const [jiraTestCaseLink, setJiraTestCaseLink] = useState('');
 
   // Fetch saved test cases on component mount
   useEffect(() => {
@@ -666,6 +667,53 @@ function TestCaseGeneration() {
     }
   };
 
+  const handlePullTestCase = async () => {
+    // First validate JIRA connection
+    if (!isJiraConnected) {
+      setError('Please connect to JIRA first');
+      setBackendLogs(prev => [...prev, 'Error: JIRA connection required']);
+      return;
+    }
+    
+    if (!jiraTestCaseLink) {
+      setError('Please enter a JIRA test case link');
+      return;
+    }
+    
+    setGenerating(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('http://localhost:8000/api/video/fetch-jira-test-case', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jira_link: jiraTestCaseLink,
+          api_key: jiraApiKey
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch test case from JIRA');
+      }
+      
+      const data = await response.json();
+      
+      // Format the test case with JIRA prefix
+      const formattedTestCase = `JIRA Test Case (${jiraTestCaseLink}):\n\n${data.test_case}`;
+      setGeneratedTestCases(formattedTestCase);
+      setBackendLogs(prev => [...prev, 'Successfully fetched test case from JIRA']);
+      
+    } catch (err) {
+      setError(err.message);
+      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   return (
     <div className="container">
       <div className="main-panel">
@@ -779,7 +827,25 @@ function TestCaseGeneration() {
                 onClick={handleGenerateTestCases}
                 disabled={generating || !isGptEnabled}
               >
-                {generating ? 'Generating...' : 'Generate Test'}
+                {generating ? 'Generating...' : 'Generate Test Case'}
+              </button>
+            </div>
+          </div>
+
+          <div className="input-group">
+            <div className="input-with-button">
+              <input
+                type="text"
+                value={jiraTestCaseLink}
+                onChange={(e) => setJiraTestCaseLink(e.target.value)}
+                placeholder="Enter JIRA Test Case Link"
+              />
+              <button 
+                className="generate-btn"
+                onClick={handlePullTestCase}
+                disabled={!isJiraConnected || generating}
+              >
+                Pull Test Case from JIRA
               </button>
             </div>
           </div>

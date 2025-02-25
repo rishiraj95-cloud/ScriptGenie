@@ -115,3 +115,35 @@ class JiraHelper:
             print(f"JQL Query used: {jql}")
             print(f"Full error details: {str(e.__dict__)}")  # More detailed error info
             raise e 
+
+    def get_test_case(self, issue_key: str) -> str:
+        """Fetch and format a test case from JIRA"""
+        try:
+            jira = JIRA(
+                basic_auth=(self.email, self.api_key),
+                server=self.server
+            )
+            
+            issue = jira.issue(issue_key)
+            
+            # Get the description field which contains the test case
+            test_case = issue.fields.description
+            
+            if not test_case:
+                raise Exception("Test case description is empty")
+            
+            # Format the test case
+            formatted_test_case = self.format_test_case(test_case)
+            
+            return formatted_test_case
+        except Exception as e:
+            print(f"Error fetching test case from JIRA: {str(e)}")
+            raise e
+
+    def format_test_case(self, raw_test_case: str) -> str:
+        """Format the raw JIRA test case text"""
+        # Remove JIRA markup and format consistently
+        formatted = raw_test_case.strip()
+        
+        # Add more formatting as needed
+        return formatted 
