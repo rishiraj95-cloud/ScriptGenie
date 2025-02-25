@@ -149,6 +149,26 @@ function TestCaseGeneration() {
   const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
   const [jiraTestCaseLink, setJiraTestCaseLink] = useState('');
 
+  // Add style for push to JIRA button
+  const pushToJiraButtonStyle = {
+    backgroundColor: '#0052CC',  // JIRA blue color
+    color: 'white',
+    border: 'none',
+    padding: '10px 20px',
+    borderRadius: '25px',
+    cursor: 'pointer',
+    fontWeight: '600',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    boxShadow: '0 3px 6px rgba(0, 82, 204, 0.2)',
+    transition: 'all 0.3s ease',
+    fontSize: '14px',
+    letterSpacing: '0.5px',
+    position: 'relative',
+    overflow: 'hidden'
+  };
+
   // Fetch saved test cases on component mount
   useEffect(() => {
     fetchSavedTestCases();
@@ -861,6 +881,32 @@ function TestCaseGeneration() {
             >
               {savingTestCases ? 'Saving...' : 'Save Test Case'}
             </button>
+            <button
+              style={pushToJiraButtonStyle}
+              onMouseOver={(e) => {
+                e.target.style.backgroundColor = '#0747A6';
+                e.target.style.transform = 'translateY(-2px)';
+                e.target.style.boxShadow = '0 6px 12px rgba(0, 82, 204, 0.3)';
+              }}
+              onMouseOut={(e) => {
+                e.target.style.backgroundColor = '#0052CC';
+                e.target.style.transform = 'translateY(0)';
+                e.target.style.boxShadow = '0 3px 6px rgba(0, 82, 204, 0.2)';
+              }}
+              disabled={!isJiraConnected || !generatedTestCases}
+            >
+              <svg 
+                width="16" 
+                height="16" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2"
+              >
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              </svg>
+              Push Test Case to JIRA
+            </button>
           </div>
           <div className="test-case-output">
             <pre>{generatedTestCases || 'Generated test cases will appear here'}</pre>
@@ -1313,6 +1359,37 @@ function AIEnabledAutomation() {
     }
   };
 
+  // Add new CSS class for the summarize button
+  const summarizeButtonStyle = {
+    backgroundColor: '#FF6B6B',  // Coral red color
+    color: 'white',
+    border: 'none',
+    padding: '8px 16px',
+    borderRadius: '20px',  // More rounded corners
+    cursor: 'pointer',
+    fontWeight: '500',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    marginLeft: '10px',
+    transition: 'all 0.3s ease'
+  };
+
+  // Add style for validate button
+  const validateButtonStyle = {
+    backgroundColor: '#4CAF50',  // Green color
+    color: 'white',
+    border: '2px solid #45a049',
+    padding: '8px 16px',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontWeight: '600',
+    marginLeft: '10px',
+    transition: 'all 0.3s ease',
+    boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
+    textTransform: 'uppercase',
+    fontSize: '0.9em',
+    letterSpacing: '0.5px'
+  };
+
   return (
     <div className="container">
       <div className="main-panel">
@@ -1382,13 +1459,41 @@ function AIEnabledAutomation() {
                  selectedFramework === 'Cucumber' ? (cucumberScript || 'Generated Cucumber script will appear here') :
                  (getCurrentScript() || 'Generated Selenium script will appear here')}
               </pre>
-              <button 
-                className="save-script-btn" 
-                onClick={handleSaveScript}
-                disabled={saving || !getCurrentScript()}
-              >
-                {saving ? 'Saving...' : 'Save Script'}
-              </button>
+              <div className="button-group">
+                <button 
+                  className="save-script-btn" 
+                  onClick={handleSaveScript}
+                  disabled={saving || !getCurrentScript()}
+                >
+                  {saving ? 'Saving...' : 'Save Script'}
+                </button>
+                <button 
+                  style={summarizeButtonStyle}
+                  onMouseOver={(e) => {
+                    e.target.style.transform = 'translateY(-2px)';
+                    e.target.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.target.style.transform = 'translateY(0)';
+                    e.target.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                  }}
+                >
+                  Summarize
+                </button>
+                <button 
+                  style={validateButtonStyle}
+                  onMouseOver={(e) => {
+                    e.target.style.backgroundColor = '#45a049';
+                    e.target.style.boxShadow = '0 4px 8px rgba(76, 175, 80, 0.3)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.target.style.backgroundColor = '#4CAF50';
+                    e.target.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
+                  }}
+                >
+                  Validate TC with Summary
+                </button>
+              </div>
             </div>
 
             <div className="terminal-section">

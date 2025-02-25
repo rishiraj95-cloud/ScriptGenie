@@ -749,22 +749,22 @@ async def improve_script(request: dict):
         helper = ChatGPTHelper(api_key)
         
         prompt = f"""
-        Improve the following {framework} automation script based on this request:
+        You are working with a test case document that contains multiple scenarios.
+        The current test case content is:
         
-        Improvement Request: {improvement_prompt}
-        
-        Current Script:
         {script}
         
-        Guidelines:
-        1. Maintain proper {framework} syntax and commands
-        2. Keep existing functionality intact
-        3. Add comments explaining changes
-        4. Ensure all imports and dependencies are preserved
-        5. Follow {framework} best practices
-        6. Implement the requested improvements
+        Your task: {improvement_prompt}
         
-        Return only the improved script without any additional explanations.
+        Guidelines:
+        1. Keep ALL existing scenarios exactly as they are
+        2. Maintain the exact same formatting style as the existing scenarios
+        3. If adding a new scenario, use the same structure and style as existing scenarios
+        4. Include any relevant images or links in the same format as existing scenarios
+        5. Preserve all existing formatting, including spacing and special characters
+        6. Return the COMPLETE test case with all existing scenarios plus any additions/changes
+        
+        Return the complete test case maintaining exact format and style.
         """
         
         improved_script = helper.generate_automation_script(prompt)
