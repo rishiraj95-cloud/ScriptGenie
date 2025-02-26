@@ -16,6 +16,34 @@ function ScriberTestCaseGenerator({
   handleDownloadAll,
   formatTestCases
 }) {
+  // Add tooltip style
+  const tooltipStyle = {
+    position: 'relative',
+    display: 'inline-block',
+    marginTop: '30px'  // Add space above button for tooltip
+  };
+  
+  const tooltipTextStyle = {
+    visibility: 'hidden',
+    width: '300px',
+    backgroundColor: '#333',
+    color: '#fff',
+    textAlign: 'center',
+    borderRadius: '6px',
+    padding: '12px 16px',  // Increase padding
+    position: 'absolute',
+    zIndex: 1,
+    bottom: '150%',  // Move tooltip higher
+    left: '50%',
+    transform: 'translateX(-50%)',
+    opacity: 0,
+    transition: 'opacity 0.3s',
+    fontSize: '14px',
+    lineHeight: '1.6',  // Increase line height
+    whiteSpace: 'normal',  // Ensure text wraps properly
+    wordWrap: 'break-word'  // Handle long words
+  };
+
   return (
     <div className="container">
       <div className="main-panel">
@@ -30,12 +58,25 @@ function ScriberTestCaseGenerator({
           <div className="file-types">
             Supported files: Videos and PDFs
           </div>
-          <button 
-            onClick={handleUpload}
-            disabled={loading}
-          >
-            {loading ? 'Processing...' : 'Generate Test Cases'}
-          </button>
+          <div style={tooltipStyle}>
+            <button 
+              onClick={handleUpload}
+              disabled={loading}
+              onMouseEnter={(e) => {
+                e.currentTarget.nextElementSibling.style.visibility = 'visible';
+                e.currentTarget.nextElementSibling.style.opacity = '1';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.nextElementSibling.style.visibility = 'hidden';
+                e.currentTarget.nextElementSibling.style.opacity = '0';
+              }}
+            >
+              {loading ? 'Processing...' : 'Generate Test Cases'}
+            </button>
+            <div style={tooltipTextStyle}>
+              If scribe files are dropped, test steps shall be generated, if video files are dropped screen shots shall be generated
+            </div>
+          </div>
         </div>
 
         {error && <div className="error">{error}</div>}
@@ -822,6 +863,79 @@ function TestCaseGeneration() {
     setUserStory(e.target.value);
   };
 
+  // Tooltip styles
+  const tooltipStyle = {
+    position: 'relative',
+    display: 'inline-block'
+  };
+  
+  const tooltipTextStyle = {
+    visibility: 'hidden',
+    width: '300px',
+    backgroundColor: '#333',
+    color: '#fff',
+    textAlign: 'left',
+    borderRadius: '6px',
+    padding: '12px 16px',
+    position: 'absolute',
+    zIndex: 1,
+    bottom: '150%',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    opacity: 0,
+    transition: 'opacity 0.3s',
+    fontSize: '14px',
+    lineHeight: '1.6',
+    whiteSpace: 'normal',
+    wordWrap: 'break-word'
+  };
+
+  // Special tooltip style for Pull Test Case button
+  const pullTestCaseTooltipStyle = {
+    ...tooltipTextStyle,
+    left: 'calc(100% + 10px)',  // Position to the right of the button
+    bottom: '50%',  // Align vertically with button
+    transform: 'translateY(50%)',  // Center vertically
+    width: '350px'  // Slightly wider to accommodate the text
+  };
+
+  // Special arrow style for Pull Test Case tooltip
+  const pullTestCaseArrowStyle = {
+    content: '""',
+    position: 'absolute',
+    top: '50%',
+    right: '100%',
+    marginTop: '-8px',
+    borderWidth: '8px',
+    borderStyle: 'solid',
+    borderColor: 'transparent #333 transparent transparent'
+  };
+
+  // Terminal improve button tooltip style
+  const improveButtonTooltipStyle = {
+    ...tooltipTextStyle,
+    width: '350px',
+    left: 'calc(100% + 10px)',  // Position to the right of the button
+    bottom: '50%',              // Align vertically with button
+    transform: 'translateY(50%)',// Center vertically
+    zIndex: 1000,
+    whiteSpace: 'normal',
+    wordWrap: 'break-word',
+    textAlign: 'left'
+  };
+
+  // Update arrow style for improve button tooltip
+  const improveButtonArrowStyle = {
+    content: '""',
+    position: 'absolute',
+    top: '50%',
+    right: '100%',
+    marginTop: '-8px',
+    borderWidth: '8px',
+    borderStyle: 'solid',
+    borderColor: 'transparent #333 transparent transparent'
+  };
+
   return (
     <div className="container">
       <div className="main-panel">
@@ -912,13 +1026,26 @@ function TestCaseGeneration() {
                 onChange={(e) => setJiraLink(e.target.value)}
                 placeholder="Enter JIRA Link"
               />
-              <button
-                className="generate-btn"
-                onClick={handleGenerateFromJira}
-                disabled={generating || !isJiraConnected || !isGptConnected}
-              >
-                {generating ? 'Generating...' : 'Generate US'}
-              </button>
+              <div style={tooltipStyle}>
+                <button
+                  className="generate-btn"
+                  onClick={handleGenerateFromJira}
+                  disabled={generating || !isJiraConnected || !isGptConnected}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.nextElementSibling.style.visibility = 'visible';
+                    e.currentTarget.nextElementSibling.style.opacity = '1';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.nextElementSibling.style.visibility = 'hidden';
+                    e.currentTarget.nextElementSibling.style.opacity = '0';
+                  }}
+                >
+                  {generating ? 'Generating...' : 'Generate US'}
+                </button>
+                <div style={tooltipTextStyle}>
+                  Enter the JIRA User Story# (already existing in JIRA) for which you want to generate test case using AI
+                </div>
+              </div>
             </div>
           </div>
 
@@ -930,31 +1057,57 @@ function TestCaseGeneration() {
                 onChange={(e) => setUserStory(e.target.value)}
                 placeholder="Enter US"
               />
-              <button 
-                className="generate-btn"
-                onClick={handleGenerateTestCases}
-                disabled={generating || !isGptEnabled}
-              >
-                {generating ? 'Generating...' : 'Generate Test Case'}
-              </button>
+              <div style={tooltipStyle}>
+                <button
+                  className="generate-btn"
+                  onClick={handleGenerateTestCases}
+                  disabled={generating || !isGptEnabled}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.nextElementSibling.style.visibility = 'visible';
+                    e.currentTarget.nextElementSibling.style.opacity = '1';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.nextElementSibling.style.visibility = 'hidden';
+                    e.currentTarget.nextElementSibling.style.opacity = '0';
+                  }}
+                >
+                  {generating ? 'Generating...' : 'Generate Test Case'}
+                </button>
+                <div style={tooltipTextStyle}>
+                  Generate Test Case for the User Story in the Input box
+                </div>
+              </div>
             </div>
           </div>
 
           <div className="input-group">
-            <div className="input-with-button">
-              <input
-                type="text"
-                value={jiraTestCaseLink}
-                onChange={(e) => setJiraTestCaseLink(e.target.value)}
-                placeholder="Enter JIRA Test Case Link"
-              />
-              <button 
+            <input
+              type="text"
+              placeholder="Enter JIRA Test Case Link"
+              value={jiraTestCaseLink}
+              onChange={(e) => setJiraTestCaseLink(e.target.value)}
+              className="jira-link-input"
+            />
+            <div style={tooltipStyle}>
+              <button
                 className="generate-btn"
                 onClick={handlePullTestCase}
-                disabled={!isJiraConnected || generating}
+                disabled={!isJiraConnected}
+                onMouseEnter={(e) => {
+                  e.currentTarget.nextElementSibling.style.visibility = 'visible';
+                  e.currentTarget.nextElementSibling.style.opacity = '1';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.nextElementSibling.style.visibility = 'hidden';
+                  e.currentTarget.nextElementSibling.style.opacity = '0';
+                }}
               >
                 Pull Test Case from JIRA
               </button>
+              <div style={pullTestCaseTooltipStyle}>
+                Enter the link of an existing Test Case here and click on the command, it shall be loaded in Generated Test Cases output box where it can be improved using AI
+                <div style={pullTestCaseArrowStyle}></div>
+              </div>
             </div>
           </div>
         </div>
@@ -984,13 +1137,26 @@ function TestCaseGeneration() {
             <div className="terminal-header">
               <span>Terminal</span>
               <div className="terminal-actions">
-                <button
-                  className="improve-btn"
-                  onClick={handleImprove}
-                  disabled={isImproving || !terminalInput.trim()}
-                >
-                  {isImproving ? 'Improving...' : 'Improve'}
-                </button>
+                <div style={tooltipStyle}>
+                  <button
+                    onClick={handleImprove}
+                    disabled={isImproving || !terminalInput.trim()}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.nextElementSibling.style.visibility = 'visible';
+                      e.currentTarget.nextElementSibling.style.opacity = '1';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.nextElementSibling.style.visibility = 'hidden';
+                      e.currentTarget.nextElementSibling.style.opacity = '0';
+                    }}
+                  >
+                    {isImproving ? 'Improving...' : 'Improve'}
+                  </button>
+                  <div style={improveButtonTooltipStyle}>
+                    Enter Prompts to iterate the results which are present in the Generated Test Cases output widget above
+                    <div style={improveButtonArrowStyle}></div>
+                  </div>
+                </div>
                 <button
                   className="revert-btn"
                   onClick={handleRevert}
@@ -1624,25 +1790,38 @@ function AIEnabledAutomation() {
               <div className="terminal-header">
                 <span>Terminal</span>
                 <div className="terminal-buttons">
-                  <button
-                    onClick={() => handleImproveScript(
-                      selectedFramework,
-                      terminalInput,
-                      selectedFramework === 'SAHI Pro' ? sahiScript :
-                      selectedFramework === 'Cucumber' ? cucumberScript :
-                      seleniumScript
-                    )}
-                    disabled={
-                      selectedFramework === 'SAHI Pro' ? isImprovingSahi || !sahiScript :
-                      selectedFramework === 'Cucumber' ? isImprovingCucumber || !cucumberScript :
-                      isImprovingSelenium || !seleniumScript
-                    }
-                  >
-                    {(selectedFramework === 'SAHI Pro' && isImprovingSahi) ||
-                     (selectedFramework === 'Cucumber' && isImprovingCucumber) ||
-                     (selectedFramework === 'Selenium' && isImprovingSelenium)
-                      ? 'Improving...' : 'Improve'}
-                  </button>
+                  <div style={tooltipStyle}>
+                    <button
+                      onClick={() => handleImproveScript(
+                        selectedFramework,
+                        terminalInput,
+                        selectedFramework === 'SAHI Pro' ? sahiScript :
+                        selectedFramework === 'Cucumber' ? cucumberScript :
+                        seleniumScript
+                      )}
+                      disabled={
+                        selectedFramework === 'SAHI Pro' ? isImprovingSahi || !sahiScript :
+                        selectedFramework === 'Cucumber' ? isImprovingCucumber || !cucumberScript :
+                        isImprovingSelenium || !seleniumScript
+                      }
+                      onMouseEnter={(e) => {
+                        e.currentTarget.nextElementSibling.style.visibility = 'visible';
+                        e.currentTarget.nextElementSibling.style.opacity = '1';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.nextElementSibling.style.visibility = 'hidden';
+                        e.currentTarget.nextElementSibling.style.opacity = '0';
+                      }}
+                    >
+                      {(selectedFramework === 'SAHI Pro' && isImprovingSahi) ||
+                       (selectedFramework === 'Cucumber' && isImprovingCucumber) ||
+                       (selectedFramework === 'Selenium' && isImprovingSelenium)
+                        ? 'Improving...' : 'Improve'}
+                    </button>
+                    <div style={improveButtonTooltipStyle}>
+                      Enter Prompts to iterate the results which are present in the Generated Test Cases output widget above
+                    </div>
+                  </div>
                   <button
                     onClick={() => handleRevertScript(
                       selectedFramework
@@ -2075,13 +2254,26 @@ function TestCaseValidator() {
                   onChange={(e) => setJiraLink(e.target.value)}
                   className="jira-link-input"
                 />
-                <button
-                  className="generate-btn"
-                  onClick={handleJiraTestCaseValidation}
-                  disabled={isValidating || !isJiraConnected || !isGptConnected}
-                >
-                  {isValidating ? 'Validating...' : 'Generate Report from JIRA Link'}
-                </button>
+                <div style={tooltipStyle}>
+                  <button
+                    className="generate-btn"
+                    onClick={handleJiraTestCaseValidation}
+                    disabled={isValidating || !isJiraConnected || !isGptConnected}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.nextElementSibling.style.visibility = 'visible';
+                      e.currentTarget.nextElementSibling.style.opacity = '1';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.nextElementSibling.style.visibility = 'hidden';
+                      e.currentTarget.nextElementSibling.style.opacity = '0';
+                    }}
+                  >
+                    {isValidating ? 'Validating...' : 'Generate Report from JIRA Link'}
+                  </button>
+                  <div style={tooltipTextStyle}>
+                    Enter the JIRA User Story# (already existing in JIRA) for which you want to generate test case using AI
+                  </div>
+                </div>
               </div>
               
               <div className="test-case-section">
