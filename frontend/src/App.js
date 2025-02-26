@@ -1680,6 +1680,58 @@ function AIEnabledAutomation() {
     letterSpacing: '0.5px'
   };
 
+  // Tooltip styles
+  const tooltipStyle = {
+    position: 'relative',
+    display: 'inline-block'
+  };
+  
+  const tooltipTextStyle = {
+    visibility: 'hidden',
+    width: '300px',
+    backgroundColor: '#333',
+    color: '#fff',
+    textAlign: 'left',
+    borderRadius: '6px',
+    padding: '12px 16px',
+    position: 'absolute',
+    zIndex: 1,
+    bottom: '150%',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    opacity: 0,
+    transition: 'opacity 0.3s',
+    fontSize: '14px',
+    lineHeight: '1.6',
+    whiteSpace: 'normal',
+    wordWrap: 'break-word'
+  };
+
+  // Terminal improve button tooltip style
+  const improveButtonTooltipStyle = {
+    ...tooltipTextStyle,
+    width: '350px',
+    left: 'calc(100% + 10px)',  // Position to the right of the button
+    bottom: '50%',              // Align vertically with button
+    transform: 'translateY(50%)',// Center vertically
+    zIndex: 1000,
+    whiteSpace: 'normal',
+    wordWrap: 'break-word',
+    textAlign: 'left'
+  };
+
+  // Arrow style for improve button tooltip
+  const improveButtonArrowStyle = {
+    content: '""',
+    position: 'absolute',
+    top: '50%',
+    right: '100%',
+    marginTop: '-8px',
+    borderWidth: '8px',
+    borderStyle: 'solid',
+    borderColor: 'transparent #333 transparent transparent'
+  };
+
   return (
     <div className="container">
       <div className="main-panel">
@@ -1894,12 +1946,12 @@ function AIEnabledAutomation() {
 
 function TestCaseValidator() {
   const [jiraApiKey, setJiraApiKey] = useState(() => localStorage.getItem('validatorJiraApiKey') || '');
+  const [gptApiKey, setGptApiKey] = useState('');
   const [isJiraConnected, setIsJiraConnected] = useState(false);
+  const [isGptConnected, setIsGptConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState(null);
   const [backendLogs, setBackendLogs] = useState([]);
-  const [gptApiKey, setGptApiKey] = useState('');
-  const [isGptConnected, setIsGptConnected] = useState(false);
   const [testCase, setTestCase] = useState('');
   const [checklist, setChecklist] = useState({
     scenarios: { present: false, count: 0 },
@@ -1913,6 +1965,33 @@ function TestCaseValidator() {
   const [isValidating, setIsValidating] = useState(false);
   const [hoveredStats, setHoveredStats] = useState(null);
   const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
+
+  // Add tooltip styles
+  const tooltipStyle = {
+    position: 'relative',
+    display: 'inline-block'
+  };
+  
+  const tooltipTextStyle = {
+    visibility: 'hidden',
+    width: '300px',
+    backgroundColor: '#333',
+    color: '#fff',
+    textAlign: 'left',
+    borderRadius: '6px',
+    padding: '12px 16px',
+    position: 'absolute',
+    zIndex: 1,
+    bottom: '150%',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    opacity: 0,
+    transition: 'opacity 0.3s',
+    fontSize: '14px',
+    lineHeight: '1.6',
+    whiteSpace: 'normal',
+    wordWrap: 'break-word'
+  };
 
   const handleJiraConnect = async () => {
     if (!jiraApiKey) {
@@ -2245,7 +2324,7 @@ function TestCaseValidator() {
                   {isGptConnected ? 'ON' : 'OFF'}
                 </span>
               </div>
-              
+
               <div className="input-group">
                 <input
                   type="text"
@@ -2286,95 +2365,97 @@ function TestCaseValidator() {
                 />
                 
                 <div className="validation-results">
-                  {/* ... checklist and AI analysis ... */}
+                  <div className="report-widgets">
+                    <div className="report-widget">
+                      <h3>Checklist Report</h3>
+                      <div className="report-content">
+                        <div className="checklist">
+                          <div className="checklist-item">
+                            <span className={`checkmark ${checklist.scenarios.present ? 'present' : 'missing'}`}>
+                              {checklist.scenarios.present ? '✓' : '✗'}
+                            </span>
+                            <span className="section-name">Scenarios</span>
+                            {checklist.scenarios.count > 0 && (
+                              <span className="count">({checklist.scenarios.count})</span>
+                            )}
+                          </div>
+                          
+                          <div className="checklist-item">
+                            <span className={`checkmark ${checklist.browserConfig.present ? 'present' : 'missing'}`}>
+                              {checklist.browserConfig.present ? '✓' : '✗'}
+                            </span>
+                            <span className="section-name">Browser Configuration</span>
+                            {checklist.browserConfig.count > 0 && (
+                              <span className="count">({checklist.browserConfig.count})</span>
+                            )}
+                          </div>
+                          
+                          <div className="checklist-item">
+                            <span className={`checkmark ${checklist.notes.present ? 'present' : 'missing'}`}>
+                              {checklist.notes.present ? '✓' : '✗'}
+                            </span>
+                            <span className="section-name">Notes</span>
+                          </div>
+                          
+                          <div className="checklist-item">
+                            <span className={`checkmark ${checklist.regressionScenarios.present ? 'present' : 'missing'}`}>
+                              {checklist.regressionScenarios.present ? '✓' : '✗'}
+                            </span>
+                            <span className="section-name">Additional Regression Scenarios</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="report-widget">
+                      <h3>AI Analysis</h3>
+                      <div className="report-content">
+                        {aiAnalysis ? (
+                          <div className="ai-analysis">
+                            {aiAnalysis.split('\n\n').map((section, index) => {
+                              if (section.startsWith('KEY FINDINGS:')) {
+                                return (
+                                  <div key={index} className="analysis-section">
+                                    <div className="section-title">Key Findings</div>
+                                    {section.split('\n').slice(1).map((point, i) => (
+                                      point.trim() && <div key={i} className="key-point">{point.trim()}</div>
+                                    ))}
+                                  </div>
+                                );
+                              } else if (section.startsWith('RECOMMENDATIONS:')) {
+                                return (
+                                  <div key={index} className="analysis-section">
+                                    <div className="section-title">Recommendations</div>
+                                    {section.split('\n').slice(1).map((point, i) => (
+                                      point.trim() && <div key={i} className="recommendation">{point.trim()}</div>
+                                    ))}
+                                  </div>
+                                );
+                              } else if (section.startsWith('DETAILED ANALYSIS:')) {
+                                return (
+                                  <div key={index} className="analysis-section">
+                                    <div className="section-title">Detailed Analysis</div>
+                                    <div className="analysis-text">{section.split('\n').slice(1).join('\n')}</div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })}
+                          </div>
+                        ) : (
+                          <div className="placeholder-text">
+                            AI analysis will appear here after generating the report
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
             <div className="report-widgets">
-              <div className="report-widget">
-                <h3>Checklist Report</h3>
-                <div className="report-content">
-                  <div className="checklist">
-                    <div className="checklist-item">
-                      <span className={`checkmark ${checklist.scenarios.present ? 'present' : 'missing'}`}>
-                        {checklist.scenarios.present ? '✓' : '✗'}
-                      </span>
-                      <span className="section-name">Scenarios</span>
-                      {checklist.scenarios.count > 0 && (
-                        <span className="count">({checklist.scenarios.count})</span>
-                      )}
-                    </div>
-                    
-                    <div className="checklist-item">
-                      <span className={`checkmark ${checklist.browserConfig.present ? 'present' : 'missing'}`}>
-                        {checklist.browserConfig.present ? '✓' : '✗'}
-                      </span>
-                      <span className="section-name">Browser Configuration</span>
-                      {checklist.browserConfig.count > 0 && (
-                        <span className="count">({checklist.browserConfig.count})</span>
-                      )}
-                    </div>
-                    
-                    <div className="checklist-item">
-                      <span className={`checkmark ${checklist.notes.present ? 'present' : 'missing'}`}>
-                        {checklist.notes.present ? '✓' : '✗'}
-                      </span>
-                      <span className="section-name">Notes</span>
-                    </div>
-                    
-                    <div className="checklist-item">
-                      <span className={`checkmark ${checklist.regressionScenarios.present ? 'present' : 'missing'}`}>
-                        {checklist.regressionScenarios.present ? '✓' : '✗'}
-                      </span>
-                      <span className="section-name">Additional Regression Scenarios</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="report-widget">
-                <h3>AI Analysis</h3>
-                <div className="report-content">
-                  {aiAnalysis ? (
-                    <div className="ai-analysis">
-                      {aiAnalysis.split('\n\n').map((section, index) => {
-                        if (section.startsWith('KEY FINDINGS:')) {
-                          return (
-                            <div key={index} className="analysis-section">
-                              <div className="section-title">Key Findings</div>
-                              {section.split('\n').slice(1).map((point, i) => (
-                                point.trim() && <div key={i} className="key-point">{point.trim()}</div>
-                              ))}
-                            </div>
-                          );
-                        } else if (section.startsWith('RECOMMENDATIONS:')) {
-                          return (
-                            <div key={index} className="analysis-section">
-                              <div className="section-title">Recommendations</div>
-                              {section.split('\n').slice(1).map((point, i) => (
-                                point.trim() && <div key={i} className="recommendation">{point.trim()}</div>
-                              ))}
-                            </div>
-                          );
-                        } else if (section.startsWith('DETAILED ANALYSIS:')) {
-                          return (
-                            <div key={index} className="analysis-section">
-                              <div className="section-title">Detailed Analysis</div>
-                              <div className="analysis-text">{section.split('\n').slice(1).join('\n')}</div>
-                            </div>
-                          );
-                        }
-                        return null;
-                      })}
-                    </div>
-                  ) : (
-                    <div className="placeholder-text">
-                      AI analysis will appear here after generating the report
-                    </div>
-                  )}
-                </div>
-              </div>
+              {/* ... existing report widgets ... */}
             </div>
           </div>
         </div>
