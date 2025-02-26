@@ -1,11 +1,11 @@
-def generate_test_cases(text_data, log_callback=print):
+def generate_test_cases(text_data):
     """Generate test cases from extracted text"""
-    log_callback("Received text data:")
+    print("Received text data:")
     for line in text_data:
-        log_callback(f"  {line}")
+        print(f"  {line}")
 
     if not text_data:
-        log_callback("Warning: Received empty text data")
+        print("Warning: Received empty text data")
         return []
 
     test_cases = []
@@ -24,20 +24,20 @@ def generate_test_cases(text_data, log_callback=print):
                         "name": potential_title,
                         "steps": []
                     }
-                    log_callback(f"Found scenario: {potential_title}")
+                    print(f"Found scenario: {potential_title}")
                     break
                 title_index -= 1
             break
 
     if not current_scenario:
-        log_callback("No scenario name found")
+        print("No scenario name found")
         return []
 
     # Process steps
     current_step_num = None
     for line in text_data:
         line = line.strip()
-        log_callback(f"Processing line: {line}")
+        print(f"Processing line: {line}")
         
         if not line or line.startswith("Made with Scribe"):
             continue
@@ -49,7 +49,7 @@ def generate_test_cases(text_data, log_callback=print):
 
         # If we have meaningful text and it's not just a number
         if line and not line.isdigit() and ("Click" in line or "Navigate" in line):
-            log_callback(f"Found step {current_step_num}: {line}")
+            print(f"Found step {current_step_num}: {line}")
             if current_step:
                 current_scenario["steps"].append(current_step)
             
@@ -59,7 +59,7 @@ def generate_test_cases(text_data, log_callback=print):
             }
             
         elif line.startswith("Expected Outcome:"):
-            log_callback(f"Found expected outcome: {line}")
+            print(f"Found expected outcome: {line}")
             if current_step:
                 current_step["expected_outcome"] = line.replace("Expected Outcome:", "").strip()
     
@@ -67,9 +67,9 @@ def generate_test_cases(text_data, log_callback=print):
         current_scenario["steps"].append(current_step)
     
     test_cases.append(current_scenario)
-    log_callback(f"Final scenario name: {current_scenario['name']}")
-    log_callback(f"Number of steps found: {len(current_scenario['steps'])}")
+    print(f"Final scenario name: {current_scenario['name']}")
+    print(f"Number of steps found: {len(current_scenario['steps'])}")
     for idx, step in enumerate(current_scenario['steps'], 1):
-        log_callback(f"Step {idx}: {step['description']}")
-    log_callback(f"Generated test cases: {test_cases}")
+        print(f"Step {idx}: {step['description']}")
+    print(f"Generated test cases: {test_cases}")
     return test_cases 
