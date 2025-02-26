@@ -53,7 +53,7 @@ async def upload_video(file: UploadFile = File(...)):
                 shutil.copyfileobj(file.file, buffer)
             
             # Extract text from PDF
-            text_data = extract_text_from_pdf(file_path, log_callback=log)
+            text_data = extract_text_from_pdf(file_path)
             log(f"PDF text extraction result: {len(text_data)} lines")
             if not text_data:
                 raise Exception("No text could be extracted from the PDF")
