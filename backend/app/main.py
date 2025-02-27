@@ -4,14 +4,18 @@ from app.routers import video
 
 app = FastAPI(title="Scribe Test Generator")
 
-# Configure CORS
+# Add CORS middleware configuration
+origins = [
+    "http://localhost:3000",  # React frontend
+    "http://127.0.0.1:3000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"]
 )
 
 # Include routers
@@ -28,4 +32,4 @@ if __name__ == "__main__":
     if is_port_in_use(8000):
         print("Warning: Port 8000 is already in use!")
 
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+    uvicorn.run(app, host="localhost", port=8000, reload=True) 

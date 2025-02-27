@@ -375,28 +375,19 @@ function TestCaseGeneration() {
     
     try {
       setBackendLogs(prev => [...prev, 'Attempting to connect to JIRA...']);
+      console.log('Attempting JIRA connection...'); // Add logging
       const response = await fetch('http://localhost:8000/api/video/verify-jira', {
         method: 'POST',
         headers: {
+          'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          "api_key": jiraApiKey 
-        })
+        body: JSON.stringify({ api_key: jiraApiKey })
       });
       
-      console.log('Raw response:', response);
-      
+      console.log('JIRA response status:', response.status); // Add logging
       if (!response.ok) {
-        let errorDetail;
-        try {
-          const errorData = await response.json();
-          errorDetail = errorData.detail;
-        } catch (e) {
-          errorDetail = `HTTP Error ${response.status}`;
-        }
-        setBackendLogs(prev => [...prev, `JIRA Connection Error: ${errorDetail}`]);
-        throw new Error(errorDetail || 'Failed to verify JIRA connection');
+        throw new Error('Failed to verify JIRA connection');
       }
       
       const data = await response.json();
@@ -2004,14 +1995,17 @@ function TestCaseValidator() {
     
     try {
       setBackendLogs(prev => [...prev, 'Attempting to connect to JIRA...']);
+      console.log('Attempting JIRA connection...'); // Add logging
       const response = await fetch('http://localhost:8000/api/video/verify-jira', {
         method: 'POST',
         headers: {
+          'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ api_key: jiraApiKey })
       });
       
+      console.log('JIRA response status:', response.status); // Add logging
       if (!response.ok) {
         throw new Error('Failed to verify JIRA connection');
       }
