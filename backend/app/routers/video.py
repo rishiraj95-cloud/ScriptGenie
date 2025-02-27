@@ -771,4 +771,25 @@ async def push_test_case(request: dict):
         )
     except Exception as e:
         print(f"Error pushing test case: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/generate-test-cases-from-text")
+async def generate_test_cases_from_text(request: dict):
+    """Generate test cases from raw user story text"""
+    try:
+        user_story = request.get('user_story')
+        api_key = request.get('api_key')
+        
+        if not user_story or not api_key:
+            raise HTTPException(status_code=400, detail="User story and API key are required")
+        
+        helper = ChatGPTHelper(api_key)
+        test_cases = helper.generate_test_cases(user_story)
+        
+        return JSONResponse(
+            status_code=200,
+            content={"test_cases": test_cases}
+        )
+    except Exception as e:
+        print(f"Error generating test cases from text: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 

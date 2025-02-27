@@ -437,14 +437,7 @@ function TestCaseGeneration() {
 
   const handleGenerateTestCases = async () => {
     if (!isGptEnabled) {
-      setError('Please enable ChatGPT service first');
-      setBackendLogs(prev => [...prev, 'Error: ChatGPT service is not enabled']);
-      return;
-    }
-    
-    if (!userStory) {
-      setError('Please enter a user story');
-      setBackendLogs(prev => [...prev, 'Error: User story is required']);
+      setError('Please enable AI first');
       return;
     }
     
@@ -453,7 +446,7 @@ function TestCaseGeneration() {
     
     try {
       setBackendLogs(prev => [...prev, 'Generating test cases...']);
-      const response = await fetch('http://localhost:8000/api/video/generate-test-cases', {
+      const response = await fetch('http://localhost:8000/api/video/generate-test-cases-from-text', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -465,8 +458,7 @@ function TestCaseGeneration() {
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to generate test cases');
+        throw new Error('Failed to generate test cases');
       }
       
       const data = await response.json();
