@@ -1017,34 +1017,31 @@ function TestCaseGeneration() {
           </div>
           
           <div className="input-group">
-            <label htmlFor="jiraLink">JIRA Link</label>
-            <div className="input-with-button">
-              <input
-                type="text"
-                id="jiraLink"
-                value={jiraLink}
-                onChange={(e) => setJiraLink(e.target.value)}
-                placeholder="Enter JIRA Link"
-              />
-              <div style={tooltipStyle}>
-                <button
-                  className="generate-btn"
-                  onClick={handleGenerateFromJira}
-                  disabled={generating || !isJiraConnected || !isGptConnected}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.nextElementSibling.style.visibility = 'visible';
-                    e.currentTarget.nextElementSibling.style.opacity = '1';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.nextElementSibling.style.visibility = 'hidden';
-                    e.currentTarget.nextElementSibling.style.opacity = '0';
-                  }}
-                >
-                  {generating ? 'Generating...' : 'Generate US'}
-                </button>
-                <div style={tooltipTextStyle}>
-                  Enter the JIRA User Story# (already existing in JIRA) for which you want to generate test case using AI
-                </div>
+            <input
+              type="text"
+              id="jiraLink"
+              value={jiraLink}
+              onChange={(e) => setJiraLink(e.target.value)}
+              placeholder="Enter User Story JIRA# Link"
+            />
+            <div style={tooltipStyle}>
+              <button
+                className="generate-btn"
+                onClick={handleGenerateFromJira}
+                disabled={generating || !isJiraConnected || !isGptConnected}
+                onMouseEnter={(e) => {
+                  e.currentTarget.nextElementSibling.style.visibility = 'visible';
+                  e.currentTarget.nextElementSibling.style.opacity = '1';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.nextElementSibling.style.visibility = 'hidden';
+                  e.currentTarget.nextElementSibling.style.opacity = '0';
+                }}
+              >
+                {generating ? 'Generating...' : 'Generate Test Case From US'}
+              </button>
+              <div style={tooltipTextStyle}>
+                Enter the JIRA User Story# (already existing in JIRA) for which you want to generate test case using AI
               </div>
             </div>
           </div>
@@ -1055,7 +1052,7 @@ function TestCaseGeneration() {
                 type="text"
                 value={userStory}
                 onChange={(e) => setUserStory(e.target.value)}
-                placeholder="Enter US"
+                placeholder="Paste User Story in this input box"
               />
               <div style={tooltipStyle}>
                 <button
@@ -1070,6 +1067,7 @@ function TestCaseGeneration() {
                     e.currentTarget.nextElementSibling.style.visibility = 'hidden';
                     e.currentTarget.nextElementSibling.style.opacity = '0';
                   }}
+                  style={{ backgroundColor: '#800080' }}  // Purple color
                 >
                   {generating ? 'Generating...' : 'Generate Test Case'}
                 </button>
@@ -1101,6 +1099,7 @@ function TestCaseGeneration() {
                   e.currentTarget.nextElementSibling.style.visibility = 'hidden';
                   e.currentTarget.nextElementSibling.style.opacity = '0';
                 }}
+                style={{ backgroundColor: '#00008B' }}  // Dark Blue color
               >
                 Pull Test Case from JIRA
               </button>
