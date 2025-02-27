@@ -8,9 +8,9 @@ load_dotenv()
 
 class ChatGPTHelper:
     def __init__(self, api_key: str = None):
+        self.api_key = api_key or os.getenv('OPENAI_API_KEY')
         self.model = "gpt-3.5-turbo"
-        # Use provided API key or fall back to environment variable
-        openai.api_key = api_key or os.getenv('OPENAI_API_KEY')
+        openai.api_key = self.api_key
         
         if not openai.api_key:
             raise ValueError("No API key provided and OPENAI_API_KEY not found in environment")
@@ -46,23 +46,37 @@ class ChatGPTHelper:
             print(f"Error in generating response: {str(e)}")
             return None 
 
-    def generate_test_cases(self, prompt: str) -> str:
+    def generate_test_cases(self, user_story: str) -> str:
+        """Generate test cases from a user story"""
         try:
+            prompt = f"""
+            Generate comprehensive test cases for the following user story:
+            {user_story}
+            
+            Please format the test cases in a clear, structured manner including:
+            - Test Case ID
+            - Description
+            - Preconditions
+            - Test Steps
+            - Expected Results
+            """
+            
             response = openai.ChatCompletion.create(
                 model=self.model,
                 messages=[{
+                    "role": "system",
+                    "content": "You are a QA expert who creates detailed test cases from user stories."
+                }, {
                     "role": "user",
                     "content": prompt
                 }],
                 max_tokens=2000,
-                temperature=0.7,
-                top_p=1.0,
-                frequency_penalty=0.0,
-                presence_penalty=0.0
+                temperature=0.7
             )
+            
             return response.choices[0].message['content'].strip()
         except Exception as e:
-            print(f"ChatGPT API error: {str(e)}")
+            print(f"Error generating test cases: {str(e)}")
             raise Exception(f"Failed to generate test cases: {str(e)}")
 
     def format_test_cases_response(self, response: str) -> str:

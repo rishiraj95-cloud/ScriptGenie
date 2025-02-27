@@ -701,6 +701,7 @@ function TestCaseGeneration() {
     
     try {
       // First fetch the user story from JIRA
+      setBackendLogs(prev => [...prev, 'Fetching user story from JIRA...']);
       const jiraResponse = await fetch('http://localhost:8000/api/video/fetch-jira-story', {
         method: 'POST',
         headers: {
@@ -720,7 +721,8 @@ function TestCaseGeneration() {
       setBackendLogs(prev => [...prev, 'Successfully fetched user story from JIRA']);
       
       // Then generate test cases using the user story
-      const generateResponse = await fetch('http://localhost:8000/api/video/generate-test-cases', {
+      setBackendLogs(prev => [...prev, 'Generating test cases using AI...']);
+      const generateResponse = await fetch('http://localhost:8000/api/video/generate-test-cases-from-story', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -732,7 +734,9 @@ function TestCaseGeneration() {
       });
       
       if (!generateResponse.ok) {
-        throw new Error('Failed to generate test cases');
+        const errorData = await generateResponse.json();
+        setBackendLogs(prev => [...prev, `Failed to generate test cases: ${errorData.detail || 'Unknown error'}`]);
+        throw new Error(errorData.detail || 'Failed to generate test cases');
       }
       
       const generateData = await generateResponse.json();
@@ -741,6 +745,7 @@ function TestCaseGeneration() {
     } catch (err) {
       setError(err.message);
       setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+      console.error('Test case generation error:', err);
     } finally {
       setGenerating(false);
     }
