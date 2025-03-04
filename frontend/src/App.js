@@ -14,7 +14,9 @@ function ScriberTestCaseGenerator({
   isVideo,
   handleUpload,
   handleDownloadAll,
-  formatTestCases
+  formatTestCases,
+  setError,
+  setBackendLogs
 }) {
   const [jiraApiKey, setJiraApiKey] = useState(() => localStorage.getItem('scriberJiraApiKey') || '');
   const [gptApiKey, setGptApiKey] = useState(() => localStorage.getItem('scriberGptApiKey') || '');
@@ -50,14 +52,121 @@ function ScriberTestCaseGenerator({
     wordWrap: 'break-word'  // Handle long words
   };
 
+  // Handle JIRA connection
+  const handleJiraConnect = async () => {
+    if (!jiraApiKey) {
+      setError('Please enter JIRA API Key');
+      setBackendLogs(prev => [...prev, 'Error: JIRA API Key is required']);
+      return;
+    }
+    
+    setConnecting(true);
+    setError(null);
+    
+    try {
+      setBackendLogs(prev => [...prev, 'Attempting to connect to JIRA...']);
+      const response = await fetch('http://localhost:8000/api/video/verify-jira', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ api_key: jiraApiKey })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to verify JIRA connection');
+      }
+      
+      const data = await response.json();
+      
+      if (data.valid) {
+        setIsJiraConnected(true);
+        localStorage.setItem('scriberJiraApiKey', jiraApiKey);
+        setError(null);
+        setBackendLogs(prev => [...prev, 'Successfully connected to JIRA']);
+      } else {
+        throw new Error('Failed to connect to JIRA');
+      }
+    } catch (err) {
+      setError(err.message);
+      setIsJiraConnected(false);
+      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  // Handle ChatGPT connection
+  const handleGptConnect = async () => {
+    if (!gptApiKey) {
+      setError('Please enter ChatGPT API Key');
+      setBackendLogs(prev => [...prev, 'Error: ChatGPT API Key is required']);
+      return;
+    }
+    
+    setConnecting(true);
+    setError(null);
+    
+    try {
+      setBackendLogs(prev => [...prev, 'Attempting to connect to ChatGPT...']);
+      const response = await fetch('http://localhost:8000/api/video/verify-chatgpt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ api_key: gptApiKey })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to verify ChatGPT connection');
+      }
+      
+      const data = await response.json();
+      
+      if (data.valid) {
+        setIsGptConnected(true);
+        setIsGptEnabled(true);
+        localStorage.setItem('scriberGptApiKey', gptApiKey);
+        setError(null);
+        setBackendLogs(prev => [...prev, 'Successfully connected to ChatGPT']);
+      } else {
+        throw new Error('Failed to connect to ChatGPT');
+      }
+    } catch (err) {
+      setError(err.message);
+      setIsGptConnected(false);
+      setIsGptEnabled(false);
+      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  // Handle clearing API keys
+  const handleClearJiraKey = () => {
+    setJiraApiKey('');
+    localStorage.removeItem('scriberJiraApiKey');
+    setIsJiraConnected(false);
+    setBackendLogs(prev => [...prev, 'Cleared JIRA API Key']);
+  };
+
+  const handleClearGptKey = () => {
+    setGptApiKey('');
+    localStorage.removeItem('scriberGptApiKey');
+    setIsGptConnected(false);
+    setIsGptEnabled(false);
+    setBackendLogs(prev => [...prev, 'Cleared ChatGPT API Key']);
+  };
+
   return (
     <div className="container">
       <div className="main-panel">
         <h1>Scribe Test Case Generator</h1>
         
-        {/* API Connection Section */}
         <div className="api-section">
           <div className="api-input-group">
+            {/* JIRA Connection */}
             <input
               type="password"
               placeholder="Enter JIRA API Key"
@@ -67,14 +176,14 @@ function ScriberTestCaseGenerator({
             />
             <button
               className={`connect-btn ${isJiraConnected ? 'connected' : ''}`}
-              onClick={() => {}}
+              onClick={handleJiraConnect}
               disabled={connecting}
             >
               {connecting ? 'Connecting...' : 'Link to JIRA'}
             </button>
             <button
               className="clear-btn"
-              onClick={() => setJiraApiKey('')}
+              onClick={handleClearJiraKey}
               disabled={connecting}
             >
               Clear
@@ -85,6 +194,7 @@ function ScriberTestCaseGenerator({
           </div>
           
           <div className="api-input-group">
+            {/* ChatGPT Connection */}
             <input
               type="password"
               placeholder="Enter ChatGPT API Key"
@@ -94,14 +204,14 @@ function ScriberTestCaseGenerator({
             />
             <button
               className={`connect-btn ${isGptConnected ? 'connected' : ''}`}
-              onClick={() => {}}
+              onClick={handleGptConnect}
               disabled={connecting}
             >
               {connecting ? 'Connecting...' : 'Connect to AI'}
             </button>
             <button
               className="clear-btn"
-              onClick={() => setGptApiKey('')}
+              onClick={handleClearGptKey}
               disabled={connecting}
             >
               Clear
@@ -2671,6 +2781,8 @@ function App() {
             handleUpload={handleUpload}
             handleDownloadAll={handleDownloadAll}
             formatTestCases={formatTestCases}
+            setError={setError}
+            setBackendLogs={setBackendLogs}
           />
         ) : activeTab === 'testgen' ? (
           <TestCaseGeneration />
