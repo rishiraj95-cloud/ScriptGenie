@@ -16,6 +16,12 @@ function ScriberTestCaseGenerator({
   handleDownloadAll,
   formatTestCases
 }) {
+  const [jiraApiKey, setJiraApiKey] = useState(() => localStorage.getItem('scriberJiraApiKey') || '');
+  const [gptApiKey, setGptApiKey] = useState(() => localStorage.getItem('scriberGptApiKey') || '');
+  const [isJiraConnected, setIsJiraConnected] = useState(false);
+  const [isGptConnected, setIsGptConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [isGptEnabled, setIsGptEnabled] = useState(false);
   // Add tooltip style
   const tooltipStyle = {
     position: 'relative',
@@ -49,6 +55,69 @@ function ScriberTestCaseGenerator({
       <div className="main-panel">
         <h1>Scribe Test Case Generator</h1>
         
+        {/* API Connection Section */}
+        <div className="api-section">
+          <div className="api-input-group">
+            <input
+              type="password"
+              placeholder="Enter JIRA API Key"
+              value={jiraApiKey}
+              onChange={(e) => setJiraApiKey(e.target.value)}
+              className="api-key-input"
+            />
+            <button
+              className={`connect-btn ${isJiraConnected ? 'connected' : ''}`}
+              onClick={() => {}}
+              disabled={connecting}
+            >
+              {connecting ? 'Connecting...' : 'Link to JIRA'}
+            </button>
+            <button
+              className="clear-btn"
+              onClick={() => setJiraApiKey('')}
+              disabled={connecting}
+            >
+              Clear
+            </button>
+            <span className={`status-indicator ${isJiraConnected ? 'on' : 'off'}`}>
+              {isJiraConnected ? 'ON' : 'OFF'}
+            </span>
+          </div>
+          
+          <div className="api-input-group">
+            <input
+              type="password"
+              placeholder="Enter ChatGPT API Key"
+              value={gptApiKey}
+              onChange={(e) => setGptApiKey(e.target.value)}
+              className="api-key-input"
+            />
+            <button
+              className={`connect-btn ${isGptConnected ? 'connected' : ''}`}
+              onClick={() => {}}
+              disabled={connecting}
+            >
+              {connecting ? 'Connecting...' : 'Connect to AI'}
+            </button>
+            <button
+              className="clear-btn"
+              onClick={() => setGptApiKey('')}
+              disabled={connecting}
+            >
+              Clear
+            </button>
+            <div className="light-bulb">
+              <div className={`bulb ${isGptConnected ? 'on' : 'off'}`}></div>
+              <div className="content">
+                <div className="line"></div>
+                <div className="line"></div>
+                <div className="line"></div>
+              </div>
+              <div className="footer"></div>
+            </div>
+          </div>
+        </div>
+
         <div className="upload-section">
           <input
             type="file"
