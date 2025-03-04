@@ -7,6 +7,7 @@ function ScriberTestCaseGenerator({
   file,
   setFile,
   testCases,
+  setTestCases,
   loading,
   error,
   backendLogs,
@@ -16,7 +17,8 @@ function ScriberTestCaseGenerator({
   handleDownloadAll,
   formatTestCases,
   setError,
-  setBackendLogs
+  setBackendLogs,
+  setLoading
 }) {
   const [jiraApiKey, setJiraApiKey] = useState(() => localStorage.getItem('scriberJiraApiKey') || '');
   const [gptApiKey, setGptApiKey] = useState(() => localStorage.getItem('scriberGptApiKey') || '');
@@ -50,6 +52,64 @@ function ScriberTestCaseGenerator({
     lineHeight: '1.6',  // Increase line height
     whiteSpace: 'normal',  // Ensure text wraps properly
     wordWrap: 'break-word'  // Handle long words
+  };
+
+  // Function to check if file is PDF
+  const isPdfFile = (file) => {
+    return file && file.type === 'application/pdf';
+  };
+
+  // Handle Process with AI
+  const handleProcessWithAI = async () => {
+    if (!file) {
+      setError('Please select a file first');
+      setBackendLogs(prev => [...prev, 'Error: No file selected']);
+      return;
+    }
+    
+    if (!isPdfFile(file)) {
+      setError('Enter valid Scribe for this functionality');
+      setBackendLogs(prev => [...prev, 'Error: Invalid file type. Only PDF files are supported']);
+      return;
+    }
+    
+    if (!isGptConnected || !isGptEnabled) {
+      setError('Please connect to AI first');
+      setBackendLogs(prev => [...prev, 'Error: AI connection required']);
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('api_key', gptApiKey);
+    
+    try {
+      const response = await fetch('http://localhost:8000/api/video/process-scribe-with-ai', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to process file');
+      }
+      
+      if (data.logs) {
+        setBackendLogs(prev => [...prev, ...data.logs]);
+      }
+      
+      // Set test cases directly as string
+      setTestCases(data.test_cases || '');
+    } catch (err) {
+      setError(err.message);
+      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Handle JIRA connection
@@ -237,24 +297,33 @@ function ScriberTestCaseGenerator({
           <div className="file-types">
             Supported files: Videos and PDFs
           </div>
-          <div style={tooltipStyle}>
-            <button 
-              onClick={handleUpload}
-              disabled={loading}
-              onMouseEnter={(e) => {
-                e.currentTarget.nextElementSibling.style.visibility = 'visible';
-                e.currentTarget.nextElementSibling.style.opacity = '1';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.nextElementSibling.style.visibility = 'hidden';
-                e.currentTarget.nextElementSibling.style.opacity = '0';
-              }}
-            >
-              {loading ? 'Processing...' : 'Generate Test Cases'}
-            </button>
-            <div style={tooltipTextStyle}>
-              If scribe files are dropped, test steps shall be generated, if video files are dropped screen shots shall be generated
+          <div className="button-group">
+            <div style={tooltipStyle}>
+              <button 
+                onClick={handleUpload}
+                disabled={loading}
+                onMouseEnter={(e) => {
+                  e.currentTarget.nextElementSibling.style.visibility = 'visible';
+                  e.currentTarget.nextElementSibling.style.opacity = '1';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.nextElementSibling.style.visibility = 'hidden';
+                  e.currentTarget.nextElementSibling.style.opacity = '0';
+                }}
+              >
+                {loading ? 'Processing...' : 'Generate Test Cases'}
+              </button>
+              <div style={tooltipTextStyle}>
+                If scribe files are dropped, test steps shall be generated, if video files are dropped screen shots shall be generated
+              </div>
             </div>
+            <button
+              className="process-ai-btn"
+              onClick={handleProcessWithAI}
+              disabled={loading || !isGptConnected || !file || !isPdfFile(file)}
+            >
+              {loading ? 'Processing...' : 'Process Scribe W/ AI'}
+            </button>
           </div>
         </div>
 
@@ -264,7 +333,7 @@ function ScriberTestCaseGenerator({
           <div className="test-cases">
             <h2>Generated Test Cases</h2>
             <div className="test-case-output">
-              <pre>{formatTestCases(testCases)}</pre>
+              <pre>{typeof testCases === 'string' ? testCases : formatTestCases(testCases)}</pre>
             </div>
           </div>
         )}
@@ -2645,15 +2714,26 @@ function App() {
   const [isVideo, setIsVideo] = useState(false);
 
   const formatTestCases = (testCases) => {
-    if (!testCases || testCases.length === 0) return "No test cases generated";
+    // If testCases is already a string, return it directly
+    if (typeof testCases === 'string') {
+      return testCases;
+    }
     
-    return testCases.map((testCase, index) => {
-      const formattedSteps = testCase.steps.map((step, stepIndex) => (
-        `${stepIndex + 1}. ${step.description}\n   Expected Outcome: ${step.expected_outcome}`
-      )).join('\n\n');
-
-      return `Test Case: ${testCase.name}\n\n${formattedSteps}`;
-    }).join('\n\n---\n\n');
+    // If it's an array, format it (existing functionality)
+    if (Array.isArray(testCases)) {
+      return testCases.map(tc => {
+        let output = `Scenario: ${tc.name}\n`;
+        output += 'Steps:\n';
+        tc.steps.forEach((step, index) => {
+          output += `${index + 1}. ${step.description}\n`;
+          output += `   Expected: ${step.expected_outcome}\n`;
+        });
+        return output;
+      }).join('\n\n');
+    }
+    
+    // If neither string nor array, return empty string
+    return '';
   };
 
   const handleUpload = async () => {
@@ -2773,6 +2853,7 @@ function App() {
             file={file}
             setFile={setFile}
             testCases={testCases}
+            setTestCases={setTestCases}
             loading={loading}
             error={error}
             backendLogs={backendLogs}
@@ -2783,6 +2864,7 @@ function App() {
             formatTestCases={formatTestCases}
             setError={setError}
             setBackendLogs={setBackendLogs}
+            setLoading={setLoading}
           />
         ) : activeTab === 'testgen' ? (
           <TestCaseGeneration />

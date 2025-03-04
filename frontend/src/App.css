@@ -1529,3 +1529,29 @@ pre {
   border-style: solid;
   border-color: #333 transparent transparent transparent;
 }
+
+.button-group {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.process-ai-btn {
+  padding: 10px 20px;
+  background: #dc3545;  /* Red color to distinguish */
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.process-ai-btn:hover:not(:disabled) {
+  background: #c82333;
+}
+
+.process-ai-btn:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+}

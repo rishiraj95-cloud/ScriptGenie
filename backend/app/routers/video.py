@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Request
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Form
 from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from app.utils.video_processor import extract_frames, extract_text_from_frames
@@ -791,4 +791,45 @@ async def generate_test_cases_from_text(request: dict):
         )
     except Exception as e:
         print(f"Error generating test cases from text: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/process-scribe-with-ai")
+async def process_scribe_with_ai(file: UploadFile = File(...), api_key: str = Form(...)):
+    logs = []
+    def log(message):
+        print(message)
+        logs.append(message)
+    
+    try:
+        if not file.filename.lower().endswith('.pdf'):
+            raise HTTPException(status_code=400, detail="Only PDF files are supported")
+        
+        # Save uploaded file
+        file_path = os.path.join(PDF_FOLDER, file.filename)
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Extract text from PDF
+        text_data = extract_text_from_pdf(file_path)
+        log(f"PDF text extraction result: {len(text_data)} lines")
+        
+        if not text_data:
+            raise Exception("No text could be extracted from the PDF")
+        
+        # Process with AI
+        helper = ChatGPTHelper(api_key)
+        test_cases = helper.generate_test_cases("\n".join(text_data))
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "test_cases": test_cases,
+                "logs": logs
+            }
+        )
+    except Exception as e:
+        log(f"Error processing file: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e), "logs": logs}
+        ) 
