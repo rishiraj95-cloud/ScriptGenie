@@ -646,8 +646,8 @@ function TestCaseGeneration() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          current_test_cases: generatedTestCases,
-          improvement_prompt: terminalInput,
+          test_cases: generatedTestCases,
+          prompt: terminalInput,
           api_key: gptApiKey
         })
       });

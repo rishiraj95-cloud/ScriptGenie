@@ -46,6 +46,62 @@ This module enables AI-powered test case generation from JIRA stories or raw use
 2. Click "Generate Test Case" (purple button)
 3. View generated test cases in the output window
 
+**AI Prompt Format:**
+When generating test cases, the following structured prompt is sent to ChatGPT:
+```
+Generate detailed test cases for the following user story. Format each test case exactly as follows:
+
+Browser Configuration: [List any specific browser requirements]
+Pre-Required Conditions: [List any prerequisites needed]
+
+Scenario Name: [Descriptive name of the scenario]
+Test Steps:
+    1. [Detailed step description]
+    Received Outcome: [Expected outcome after this step]
+    2. [Next step description]
+    Received Outcome: [Expected outcome after this step]
+    ... [Continue with numbered steps]
+
+Important: After all scenarios, always include these mandatory sections:
+
+Regression Scenarios: 
+- Related functionality that might be impacted
+- Integration points with other features
+- Backward compatibility checks
+- Performance implications
+- Security considerations
+- Edge cases and boundary conditions
+
+Notes:
+- Test environment requirements
+- Data setup requirements
+- Special considerations
+- Known limitations
+- Dependencies
+- Risk areas
+
+Important formatting rules:
+1. Each step must be numbered
+2. Each step must have a "Received Outcome" immediately after it
+3. Outcomes should be detailed and specific
+4. Include both positive and negative test scenarios
+5. Include verification steps for UI elements, error messages, and state changes
+6. Browser Configuration and Pre-Required Conditions are mandatory
+7. Regression Scenarios and Notes sections are mandatory
+8. Provide detailed regression scenarios based on the feature's context
+
+Here is the user story to generate test cases for:
+[User Story Content]
+```
+
+The AI will respond with test cases following this format, ensuring:
+- Browser Configuration section
+- Pre-Required Conditions section
+- Multiple scenarios with step-by-step instructions
+- Received Outcomes after each step
+- Comprehensive Regression Scenarios section
+- Detailed Notes section
+
 **Additional Features:**
 - Save generated test cases using "Save Test Case" button
 - Push test cases to JIRA using "Push Test Case to JIRA" button

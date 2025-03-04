@@ -50,15 +50,57 @@ class ChatGPTHelper:
         """Generate test cases from a user story"""
         try:
             prompt = f"""
-            Generate comprehensive test cases for the following user story:
+            Generate detailed test cases for the following user story. Format each test case exactly as follows:
+            
+            Browser Configuration: [List any specific browser requirements]
+            Pre-Required Conditions: [List any prerequisites needed]
+            
+            Scenario Name: [Descriptive name of the scenario]
+            Test Steps:
+                1. [Detailed step description]
+                Received Outcome: [Expected outcome after this step]
+                2. [Next step description]
+                Received Outcome: [Expected outcome after this step]
+                ... [Continue with numbered steps]
+            
+            Important: After all scenarios, always include these mandatory sections:
+            
+            Regression Scenarios: 
+            - Related functionality that might be impacted
+            - Integration points with other features
+            - Backward compatibility checks
+            - Performance implications
+            - Security considerations
+            - Edge cases and boundary conditions
+            
+            Notes:
+            - Test environment requirements
+            - Data setup requirements
+            - Special considerations
+            - Known limitations
+            - Dependencies
+            - Risk areas
+            
+            Important formatting rules:
+            1. Each step must be numbered
+            2. Each step must have a "Received Outcome" immediately after it
+            3. Outcomes should be detailed and specific
+            4. Include both positive and negative test scenarios
+            5. Include verification steps for UI elements, error messages, and state changes
+            6. Browser Configuration and Pre-Required Conditions are mandatory
+            7. Regression Scenarios and Notes sections are mandatory
+            8. Provide detailed regression scenarios based on the feature's context
+            
+            Here is the user story to generate test cases for:
+            
             {user_story}
             
-            Please format the test cases in a clear, structured manner including:
-            - Test Case ID
-            - Description
-            - Preconditions
-            - Test Steps
-            - Expected Results
+            Generate multiple scenarios following this exact format. Make sure to include test cases for:
+            - Happy path scenarios
+            - Error scenarios
+            - Edge cases
+            - UI verification
+            - State transitions
             """
             
             response = openai.ChatCompletion.create(

@@ -544,40 +544,40 @@ async def delete_test_cases(request: Request):
 @router.post("/improve-test-cases")
 async def improve_test_cases(request: dict):
     try:
-        current_test_cases = request.get('current_test_cases')
-        improvement_prompt = request.get('improvement_prompt')
+        test_cases = request.get('test_cases')
+        prompt = request.get('prompt')
         api_key = request.get('api_key')
         
-        if not all([current_test_cases, improvement_prompt, api_key]):
-            raise HTTPException(status_code=400, detail="Current test cases, improvement prompt and API key are required")
+        if not all([test_cases, prompt, api_key]):
+            raise HTTPException(status_code=400, detail="Test cases, improvement prompt and API key are required")
         
         helper = ChatGPTHelper(api_key)
         
-        prompt = f"""
-        Improve the following test cases based on this instruction while maintaining the exact format:
-        {improvement_prompt}
+        base_prompt = f"""
+        Improve the following test cases while maintaining this exact format:
         
-        The output must follow this exact structure:
-        1. Start with "Browser Configuration:" and "Pre-Required Conditions:"
-        2. Each scenario must start with "Scenario Name:" followed by the scenario title
-        3. Test steps must be numbered and indented with 8 spaces
-        4. Each step must be followed by "Received Outcome:" on the next line with the same indentation
-        5. Include a "Regression Scenarios:" section with bullet points
-        6. End with a "Notes:" section with bullet points
+        Browser Configuration: [Specify browser]
+        Pre-Required Conditions: [List prerequisites]
+        
+        Scenario Name: [Name]
+        Test Steps:
+            1. [Step]
+            Received Outcome: [Outcome]
+        
+        Important: Always maintain these mandatory sections:
+        - Browser Configuration
+        - Pre-Required Conditions
+        - Scenarios with numbered steps and Received Outcomes
+        - Regression Scenarios
+        - Notes
+        
+        User improvement request: {prompt}
         
         Current test cases:
-        {current_test_cases}
-        
-        Maintain this exact format in your response. Do not add any explanations or additional text.
-        The response should start directly with "Browser Configuration:" and maintain consistent spacing and formatting throughout.
+        {test_cases}
         """
         
-        improved_test_cases = helper.generate_automation_script(prompt)
-        
-        # Verify format and structure
-        if not improved_test_cases.startswith("Browser Configuration:"):
-            improved_test_cases = current_test_cases
-            raise HTTPException(status_code=400, detail="Generated test cases did not match required format")
+        improved_test_cases = helper.generate_test_cases(base_prompt)
         
         return JSONResponse(
             status_code=200,
@@ -775,7 +775,6 @@ async def push_test_case(request: dict):
 
 @router.post("/generate-test-cases-from-text")
 async def generate_test_cases_from_text(request: dict):
-    """Generate test cases from raw user story text"""
     try:
         user_story = request.get('user_story')
         api_key = request.get('api_key')
