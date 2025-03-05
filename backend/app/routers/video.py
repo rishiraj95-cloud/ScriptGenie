@@ -677,6 +677,7 @@ async def fetch_epic_status(request: dict):
         
         # Extract epic key from JIRA link
         epic_key = epic_link.split('/')[-1]
+        print(f"Processing epic status request for: {epic_key}")
         
         # Get epic statistics
         epic_stats = helper.get_epic_statistics(epic_key)
@@ -687,11 +688,15 @@ async def fetch_epic_status(request: dict):
                 "total_stories": epic_stats["total_stories"],
                 "stories_with_code": epic_stats["stories_with_code"],
                 "stories_with_tests": epic_stats["stories_with_tests"],
-                "missing_test_cases": epic_stats["stories_with_code"] - epic_stats["stories_with_tests"]
+                "missing_test_cases": epic_stats["stories_with_code"] - epic_stats["stories_with_tests"],
+                "test_coverage": epic_stats["test_coverage"],
+                "details": epic_stats["details"]  # Include detailed information
             }
         )
     except Exception as e:
         print(f"Error fetching epic status: {str(e)}")
+        print(f"Epic link provided: {epic_link}")
+        print(f"Extracted epic key: {epic_key if 'epic_key' in locals() else 'Not extracted'}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/improve-script")

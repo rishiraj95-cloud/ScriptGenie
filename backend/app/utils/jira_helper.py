@@ -51,44 +51,70 @@ class JiraHelper:
             raise e 
 
     def get_epic_statistics(self, epic_key: str) -> dict:
+        """
+        Get statistics for an epic including total stories, stories with code commits, and stories with test cases.
+        
+        Args:
+            epic_key (str): The JIRA key of the epic (e.g., 'KLA-8827')
+            
+        Returns:
+            dict: Statistics containing:
+                - total_stories: Total number of user stories in the epic
+                - stories_with_code: Number of stories with actual code commits
+                - stories_with_tests: Number of stories with test cases
+                - details: Detailed information about each category
+        """
         try:
             jira = JIRA(
                 basic_auth=(self.email, self.api_key),
                 server=self.server
             )
             
-            # First verify the epic exists
+            # First verify the epic exists and get project key
             try:
                 epic = jira.issue(epic_key)
-                print(f"Found epic: {epic.fields.summary}")
+                project_key = epic.fields.project.key
+                print(f"Found epic: {epic.fields.summary} (Key: {epic_key}) in project: {project_key}")
             except Exception as e:
                 print(f"Error finding epic: {str(e)}")
                 raise
             
-            jql = f'issueType = "User Story" AND "Epic Link" = "{epic_key}"'
-            stories = jira.search_issues(jql, maxResults=100)
+            # Get all user stories linked to this epic
+            stories_jql = f'issueType = "User Story" AND "Epic Link" = "{epic_key}"'
+            print(f"Executing JQL for stories: {stories_jql}")
+            stories = jira.search_issues(stories_jql, maxResults=100)
+            print(f"Found {len(stories)} total user stories")
+            
+            # Get stories with code using commits query
+            code_jql = f'project = {project_key} AND "Epic Link" = "{epic_key}" AND issueType = "User Story" AND development[commits].all > 0'
+            print(f"Executing JQL for code commits: {code_jql}")
+            stories_with_code_results = jira.search_issues(code_jql, maxResults=100)
+            print(f"Found {len(stories_with_code_results)} stories with code commits")
+            stories_with_code = len(stories_with_code_results)
+            stories_with_code_details = [{
+                'key': story.key,
+                'summary': story.fields.summary,
+                'status': story.fields.status.name
+            } for story in stories_with_code_results]
             
             # Lists to store detailed information
             all_stories = []
-            stories_with_code_details = []
             stories_with_tests_details = []
             
-            stories_with_code = 0
             stories_with_tests = 0
+            
+            # Performance optimization: Create a set of story keys with code
+            stories_with_code_keys = {story.key for story in stories_with_code_results}
             
             for story in stories:
                 # Store basic story info
                 story_info = {
                     'key': story.key,
                     'summary': story.fields.summary,
-                    'status': story.fields.status.name
+                    'status': story.fields.status.name,
+                    'has_code': story.key in stories_with_code_keys  # Add this flag for UI
                 }
                 all_stories.append(story_info)
-                
-                # Check for code (development status)
-                if story.fields.status.name in ['In Development', 'Done', 'In Progress', 'Resolved']:
-                    stories_with_code += 1
-                    stories_with_code_details.append(story_info)
                 
                 # Check for test cases (subtasks)
                 subtasks = story.fields.subtasks
@@ -100,10 +126,14 @@ class JiraHelper:
                     stories_with_tests += 1
                     stories_with_tests_details.append(story_info)
             
+            # Calculate coverage metrics
+            code_coverage = (stories_with_tests / stories_with_code * 100) if stories_with_code > 0 else 0
+            
             return {
                 "total_stories": len(stories),
                 "stories_with_code": stories_with_code,
                 "stories_with_tests": stories_with_tests,
+                "test_coverage": round(code_coverage, 2),  # Add coverage percentage
                 "details": {
                     "all_stories": all_stories,
                     "stories_with_code": stories_with_code_details,
@@ -112,9 +142,11 @@ class JiraHelper:
             }
         except Exception as e:
             print(f"Error getting epic statistics: {str(e)}")
-            print(f"JQL Query used: {jql}")
-            print(f"Full error details: {str(e.__dict__)}")  # More detailed error info
-            raise e 
+            print(f"JQL Queries used:")
+            print(f"Stories JQL: {stories_jql}")
+            print(f"Code JQL: {code_jql}")
+            print(f"Full error details: {str(e.__dict__)}")
+            raise e
 
     def get_test_case(self, issue_key: str) -> str:
         """Fetch and format a test case from JIRA"""

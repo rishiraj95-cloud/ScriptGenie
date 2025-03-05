@@ -147,4 +147,15 @@ This module helps validate and analyze existing test cases.
 - For JIRA integration issues, verify link format
 
 ### Note
-This is a continuously evolving tool. New features and improvements are being added regularly. 
+This is a continuously evolving tool. New features and improvements are being added regularly.
+
+### Mass Reports
+#### Epic Statistics Calculation
+The system calculates the following metrics:
+
+1. **Total User Stories**: All user stories linked to the epic
+2. **Stories with Code**: Stories that have actual code commits (not just status)
+3. **Stories with Tests**: Stories that have associated test cases
+4. **Test Coverage**: Percentage of stories with code that have test cases
+
+Note: Code detection is based on actual commits, not story status. 
