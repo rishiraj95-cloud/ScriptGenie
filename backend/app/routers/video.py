@@ -163,6 +163,27 @@ async def verify_jira(request: dict):
         print(f"JIRA verification error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/verify-mass-reports-jira")
+async def verify_mass_reports_jira(request: dict):
+    """Specific endpoint for Mass Reports JIRA verification"""
+    try:
+        api_key = request.get('api_key')
+        if not api_key:
+            raise HTTPException(status_code=400, detail="API key is required")
+        
+        helper = JiraHelper(api_key)
+        print(f"Attempting Mass Reports JIRA connection with server: {helper.server}")
+        is_valid = helper.verify_connection()
+        print(f"Mass Reports JIRA connection result: {is_valid}")
+        
+        return JSONResponse(
+            status_code=200,
+            content={"valid": is_valid}
+        )
+    except Exception as e:
+        print(f"Mass Reports JIRA verification error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/generate-test-cases-from-story")
 async def generate_test_cases_from_story(request: dict):
     """Generate test cases from JIRA user story"""

@@ -1360,7 +1360,7 @@ function TestCaseGeneration() {
             <button
               className="push-jira-btn"
               onClick={() => setShowPushModal(true)}
-              disabled={!isJiraConnected || !generatedTestCases}
+              disabled={!isJiraConnected}
             >
               Push Test Case to JIRA
             </button>
@@ -2906,9 +2906,10 @@ function MassReports() {
     
     try {
       setBackendLogs(prev => [...prev, 'Attempting to connect to JIRA...']);
-      const response = await fetch('http://localhost:8000/api/video/verify-jira', {
+      const response = await fetch('http://localhost:8000/api/video/verify-mass-reports-jira', {
         method: 'POST',
         headers: {
+          'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ api_key: jiraApiKey })
@@ -3190,7 +3191,11 @@ function MassReports() {
                 </div>
               </div>
             </div>
-            <button className="push-jira-btn" onClick={() => setShowPushModal(true)} disabled={!isJiraConnected || !generatedTestCases}>
+            <button 
+              className="push-jira-btn" 
+              onClick={() => setShowPushModal(true)} 
+              disabled={!isJiraConnected}
+            >
               Push Test Case to JIRA
             </button>
           </div>
