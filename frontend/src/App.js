@@ -1,6 +1,7 @@
 import logo from './logo.svg';
 import React, { useState, useEffect } from 'react';
 import DiffView from './components/DiffView';
+import BackfillStatus from './components/BackfillStatus';
 import './App.css';
 
 function ScriberTestCaseGenerator({
@@ -2893,7 +2894,8 @@ function MassReports() {
   const [generating, setGenerating] = useState(false);
   const [hoveredStats, setHoveredStats] = useState(null);
   const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
-
+  const [backfillStatus, setBackfillStatus] = useState([]);
+  
   const handleJiraConnect = async () => {
     if (!jiraApiKey) {
       setError('Please enter JIRA API Key');
@@ -3026,6 +3028,87 @@ function MassReports() {
       setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleBackfill = async () => {
+    if (!epicLink) {
+      setError('Enter an Epic Link');
+      return;
+    }
+    if (!epicStats) {
+      setError('Cannot generate report as Generate TC Status Report has not been run');
+      return;
+    }
+    if (!isJiraConnected || !isGptConnected) {
+      setError('Please connect to both JIRA and AI first');
+      return;
+    }
+
+    setBackfillStatus([]);
+    
+    try {
+      // Get stories needing test cases
+      const response = await fetch('http://localhost:8000/api/video/get-stories-needing-tests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ epic_link: epicLink, api_key: jiraApiKey })
+      });
+      
+      const { stories } = await response.json();
+      
+      // Process each story sequentially
+      for (let i = 0; i < stories.length; i++) {
+        setBackfillStatus(prev => [...prev, 
+          `Processing ${i + 1}/${stories.length}: ${stories[i].key}`
+        ]);
+        
+        // Small delay between stories
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        try {
+          const response = await fetch('http://localhost:8000/api/video/backfill-test-case', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              story: stories[i],
+              api_key: gptApiKey
+            })
+          });
+          
+          if (!response.ok) throw new Error('Failed to generate test case');
+          
+          setBackfillStatus(prev => [...prev, 
+            `${stories[i].key}: Generated Successfully`
+          ]);
+        } catch (err) {
+          setBackfillStatus(prev => [...prev, 
+            `${stories[i].key}: Failed - ${err.message}`
+          ]);
+          // Continue with next story
+        }
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleDownloadAll = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/api/video/download-backfill-test-cases');
+      const blob = await response.blob();
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'backfill_test_cases.zip';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      setError('Failed to download test cases');
     }
   };
 
@@ -3179,17 +3262,17 @@ function MassReports() {
 
           <div className="actions-section">
             <div className="action-group">
-              <button className="backfill-btn">
+              <button 
+                className="backfill-btn"
+                onClick={handleBackfill}
+                disabled={!isJiraConnected || !isGptConnected || !epicStats}
+              >
                 Backfill Test Cases
               </button>
-              <div className="backfill-list-widget">
-                <h3>Backfill Status</h3>
-                <div className="list-content">
-                  <div className="placeholder-text">
-                    Backfill items will appear here
-                  </div>
-                </div>
-              </div>
+              <BackfillStatus 
+                status={backfillStatus}
+                onDownloadAll={handleDownloadAll}
+              />
             </div>
             <button 
               className="push-jira-btn" 

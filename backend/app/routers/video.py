@@ -858,4 +858,84 @@ async def process_scribe_with_ai(file: UploadFile = File(...), api_key: str = Fo
         return JSONResponse(
             status_code=500,
             content={"error": str(e), "logs": logs}
-        ) 
+        )
+
+@router.post("/get-stories-needing-tests")
+async def get_stories_needing_tests(request: dict):
+    """Get stories from epic that need test cases"""
+    try:
+        epic_link = request.get('epic_link')
+        api_key = request.get('api_key')
+        
+        if not all([epic_link, api_key]):
+            raise HTTPException(status_code=400, detail="Epic link and API key are required")
+        
+        helper = JiraHelper(api_key)
+        epic_key = epic_link.split('/')[-1]
+        
+        stories = helper.get_stories_needing_tests(epic_key)
+        
+        return JSONResponse(
+            status_code=200,
+            content={"stories": stories}
+        )
+    except Exception as e:
+        print(f"Error fetching stories needing tests: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/backfill-test-case")
+async def backfill_test_case(request: dict):
+    """Generate test case for a single story during backfill"""
+    try:
+        story = request.get('story')
+        api_key = request.get('api_key')
+        
+        if not all([story, api_key]):
+            raise HTTPException(status_code=400, detail="Story and API key are required")
+        
+        helper = ChatGPTHelper(api_key)
+        test_case = helper.generate_test_cases(story['description'])
+        
+        # Save test case
+        filename = f"Test Case{story['key']}.txt"
+        file_path = os.path.join(TEST_CASES_FOLDER, filename)
+        
+        with open(file_path, 'w') as f:
+            f.write(test_case)
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "filename": filename,
+                "test_case": test_case
+            }
+        )
+    except Exception as e:
+        print(f"Error generating backfill test case: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/download-backfill-test-cases")
+async def download_backfill_test_cases():
+    """Download all backfill test cases as zip"""
+    try:
+        # Create in-memory zip file
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for filename in os.listdir(TEST_CASES_FOLDER):
+                file_path = os.path.join(TEST_CASES_FOLDER, filename)
+                zip_file.write(file_path, filename)
+        
+        # Reset buffer position
+        zip_buffer.seek(0)
+        
+        # Return zip file
+        return StreamingResponse(
+            zip_buffer,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f"attachment; filename=backfill_test_cases.zip"
+            }
+        )
+    except Exception as e:
+        print(f"Error creating zip file: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e)) 

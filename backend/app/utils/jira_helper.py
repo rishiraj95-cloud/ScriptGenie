@@ -221,3 +221,66 @@ class JiraHelper:
         except Exception as e:
             print(f"Error creating test case: {str(e)}")
             raise e 
+
+    def get_stories_needing_tests(self, epic_key: str) -> list:
+        """
+        Get stories from epic that need test cases.
+        Uses optimized JQL query and efficient subtask checking.
+        """
+        try:
+            jira = JIRA(
+                basic_auth=(self.email, self.api_key),
+                server=self.server
+            )
+            
+            # Get project key from epic
+            epic = jira.issue(epic_key)
+            project_key = epic.fields.project.key
+            print(f"Found epic: {epic.fields.summary} (Key: {epic_key}) in project: {project_key}")
+            
+            # Optimized JQL to get relevant stories in one query
+            jql = (
+                f'project = {project_key} AND '
+                f'"Epic Link" = "{epic_key}" AND '
+                f'status != Open AND '
+                f'issuetype = "User Story"'
+            )
+            
+            print(f"Executing JQL for stories: {jql}")
+            
+            # Get all fields we need in one call
+            stories = jira.search_issues(
+                jql,
+                maxResults=100,
+                fields='key,summary,description,status,subtasks,issuetype'
+            )
+            print(f"Found {len(stories)} non-Open stories")
+            
+            stories_needing_tests = []
+            for story in stories:
+                # Efficient subtask checking using fields already fetched
+                has_test_case = any(
+                    subtask.fields.issuetype.name == 'Test Case'
+                    for subtask in story.fields.subtasks
+                )
+                
+                if not has_test_case:
+                    stories_needing_tests.append({
+                        'key': story.key,
+                        'summary': story.fields.summary,
+                        'description': story.fields.description,
+                        'status': story.fields.status.name,
+                        'type': story.fields.issuetype.name
+                    })
+            
+            print(f"Found {len(stories_needing_tests)} stories needing test cases")
+            
+            return stories_needing_tests
+            
+        except Exception as e:
+            print(f"Error getting stories needing tests: {str(e)}")
+            print(f"JQL Query used: {jql}")
+            if hasattr(e, 'response'):
+                print(f"Response status: {e.response.status_code}")
+                print(f"Response body: {e.response.text}")
+            raise e 
