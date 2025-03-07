@@ -15,27 +15,63 @@ class JiraHelper:
         
     def verify_connection(self) -> bool:
         try:
-            print(f"Attempting JIRA connection with server: {self.server}")
+            print(f"[JIRA Connection] Attempting to connect to server: {self.server}")
+            print(f"[JIRA Connection] Using email: {self.email[:3]}...{self.email[-10:]}")
+            print(f"[JIRA Connection] API key length: {len(self.api_key)} characters")
+            
             # Initialize JIRA connection
             jira = JIRA(
                 basic_auth=(self.email, self.api_key),
                 server=self.server
             )
             
-            # Test connection by trying to access JIRA information
-            jira.myself()
-            return True
+            print("[JIRA Connection] JIRA client initialized, testing connection...")
+            
+            try:
+                # Test connection by trying to access JIRA information
+                myself = jira.myself()
+                # Handle response which is a dictionary
+                display_name = myself.get('displayName') or myself.get('name') or myself.get('emailAddress')
+                print(f"[JIRA Connection] Successfully connected as: {display_name}")
+                print(f"[JIRA Connection] Full response: {myself}")  # Debug log
+                return True
+            except Exception as inner_e:
+                print(f"[JIRA Connection] Failed to get user info: {str(inner_e)}")
+                if hasattr(inner_e, 'response'):
+                    print(f"[JIRA Connection] Response status: {inner_e.response.status_code}")
+                    print(f"[JIRA Connection] Response headers: {dict(inner_e.response.headers)}")
+                    print(f"[JIRA Connection] Response body: {inner_e.response.text}")
+                    # Try to parse error response
+                    try:
+                        error_json = inner_e.response.json()
+                        print(f"[JIRA Connection] Error details: {error_json}")
+                    except:
+                        pass
+                raise inner_e
+                
         except Exception as e:
             error_message = str(e)
+            print("[JIRA Connection] Connection failed with error:")
             if "401" in error_message:
-                print("JIRA Authentication Error: Invalid credentials")
+                print("[JIRA Connection] Authentication Error: Invalid credentials")
+                print(f"[JIRA Connection] Full error: {error_message}")
             elif "404" in error_message:
-                print("JIRA Server Error: Could not find JIRA server")
+                print("[JIRA Connection] Server Error: Could not find JIRA server")
+                print(f"[JIRA Connection] Full error: {error_message}")
             elif "Connection" in error_message:
-                print("JIRA Connection Error: Could not connect to server")
+                print("[JIRA Connection] Network Error: Could not connect to server")
+                print(f"[JIRA Connection] This might be due to:")
+                print("  - Network connectivity issues")
+                print("  - CORS restrictions")
+                print("  - Proxy/firewall settings")
+                print(f"[JIRA Connection] Full error: {error_message}")
             else:
-                print(f"JIRA Error: {error_message}")
-            return False 
+                print(f"[JIRA Connection] Unexpected error: {error_message}")
+                if hasattr(e, 'response'):
+                    print(f"[JIRA Connection] Response status: {e.response.status_code}")
+                    print(f"[JIRA Connection] Response headers: {dict(e.response.headers)}")
+                    print(f"[JIRA Connection] Response body: {e.response.text}")
+            return False
 
     def get_issue_description(self, issue_key: str) -> str:
         try:
