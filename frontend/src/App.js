@@ -1973,6 +1973,9 @@ function AIEnabledAutomation() {
     setIsGptConnected(false);
   };
 
+  // ... existing state variables ...
+  const [isSavedScriptsCollapsed, setSavedScriptsCollapsed] = useState(false);
+
   return (
     <div className="container">
       <div className="main-panel">
@@ -2139,44 +2142,49 @@ function AIEnabledAutomation() {
           </div>
 
           <div className="saved-scripts-section">
-            <h3>Saved Scripts</h3>
-            <div className="saved-scripts-list">
-              {savedScripts.length > 0 ? (
-                <table className="saved-scripts-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Date</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {savedScripts.map((script, index) => (
-                      <tr key={index} className="saved-script-row">
-                        <td>
-                          <button
-                            className="script-link"
-                            onClick={() => handleDownloadScript(script.name)}
-                          >
-                            {script.name}
-                          </button>
-                        </td>
-                        <td className="script-date">{script.created}</td>
-                        <td>
-                          <button
-                            className="download-btn"
-                            onClick={() => handleDownloadScript(script.name)}
-                          >
-                            Download
-                          </button>
-                        </td>
+            <div className="section-header" onClick={() => setSavedScriptsCollapsed(!isSavedScriptsCollapsed)}>
+              <h3>Saved Scripts</h3>
+              <span className={`collapse-arrow ${isSavedScriptsCollapsed ? 'collapsed' : ''}`}>▼</span>
+            </div>
+            <div className={`section-content ${isSavedScriptsCollapsed ? 'collapsed' : ''}`}>
+              <div className="saved-scripts-list">
+                {savedScripts.length > 0 ? (
+                  <table className="saved-scripts-table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Date</th>
+                        <th>Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div className="no-scripts">No saved scripts</div>
-              )}
+                    </thead>
+                    <tbody>
+                      {savedScripts.map((script, index) => (
+                        <tr key={index} className="saved-script-row">
+                          <td>
+                            <button
+                              className="script-link"
+                              onClick={() => handleDownloadScript(script.name)}
+                            >
+                              {script.name}
+                            </button>
+                          </td>
+                          <td className="script-date">{script.created}</td>
+                          <td>
+                            <button
+                              className="download-btn"
+                              onClick={() => handleDownloadScript(script.name)}
+                            >
+                              Download
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="no-scripts">No saved scripts</div>
+                )}
+              </div>
             </div>
           </div>
         </div>
