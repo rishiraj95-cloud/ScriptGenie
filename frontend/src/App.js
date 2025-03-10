@@ -2187,7 +2187,7 @@ function AIEnabledAutomation() {
 
 function TestCaseValidator() {
   const [jiraApiKey, setJiraApiKey] = useState(() => localStorage.getItem('validatorJiraApiKey') || '');
-  const [gptApiKey, setGptApiKey] = useState('');
+  const [gptApiKey, setGptApiKey] = useState(() => localStorage.getItem('validatorGptApiKey') || '');
   const [isJiraConnected, setIsJiraConnected] = useState(false);
   const [isGptConnected, setIsGptConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -2206,6 +2206,7 @@ function TestCaseValidator() {
   const [isValidating, setIsValidating] = useState(false);
   const [hoveredStats, setHoveredStats] = useState(null);
   const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
+  const [validationReport, setValidationReport] = useState(null);
 
   // Add tooltip styles
   const tooltipStyle = {
@@ -2283,7 +2284,6 @@ function TestCaseValidator() {
   const handleGptConnect = async () => {
     if (!gptApiKey) {
       setError('Please enter ChatGPT API Key');
-      setBackendLogs(prev => [...prev, 'Error: ChatGPT API Key is required']);
       return;
     }
     
@@ -2291,7 +2291,6 @@ function TestCaseValidator() {
     setError(null);
     
     try {
-      setBackendLogs(prev => [...prev, 'Attempting to connect to ChatGPT...']);
       const response = await fetch('http://localhost:8000/api/video/verify-chatgpt', {
         method: 'POST',
         headers: {
@@ -2308,16 +2307,15 @@ function TestCaseValidator() {
       
       if (data.valid) {
         setIsGptConnected(true);
-        localStorage.setItem('validatorGptApiKey', gptApiKey);
+        localStorage.setItem('validatorGptApiKey', gptApiKey);  // Save to localStorage
         setError(null);
         setBackendLogs(prev => [...prev, 'Successfully connected to ChatGPT']);
       } else {
-        throw new Error('Invalid API key');
+        throw new Error('Failed to connect to ChatGPT');
       }
     } catch (err) {
       setError(err.message);
       setIsGptConnected(false);
-      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
     } finally {
       setConnecting(false);
     }
@@ -2519,189 +2517,197 @@ function TestCaseValidator() {
     }
   };
 
+  const handleClearGptKey = () => {
+    setGptApiKey('');
+    localStorage.removeItem('validatorGptApiKey');  // Remove from localStorage
+    setIsGptConnected(false);
+  };
+
   return (
     <div className="container">
       <div className="main-panel">
         <h1>Test Case Validator</h1>
-        
         {error && <div className="error">{error}</div>}
         
         <div className="validator-controls">
-          <div className="input-section">
-            <div className="controls-container">
-              <div className="api-input-group">
-                <input
-                  type="password"
-                  placeholder="Enter JIRA API Key"
-                  className="api-key-input"
-                  value={jiraApiKey}
-                  onChange={(e) => setJiraApiKey(e.target.value)}
-                />
-                <button 
-                  className="connect-btn"
-                  onClick={handleJiraConnect}
-                  disabled={connecting}
-                >
-                  {connecting ? 'Connecting...' : 'Link to JIRA'}
-                </button>
-                <span className={`status-indicator ${isJiraConnected ? 'on' : 'off'}`}>
-                  {isJiraConnected ? 'ON' : 'OFF'}
-                </span>
-              </div>
-              
-              <div className="api-input-group">
-                <input
-                  type="password"
-                  placeholder="Enter ChatGPT API Key"
-                  className="api-key-input"
-                  value={gptApiKey}
-                  onChange={(e) => setGptApiKey(e.target.value)}
-                />
-                <button 
-                  className={`connect-btn ${isGptConnected ? 'connected' : ''}`}
-                  onClick={handleGptConnect}
-                  disabled={connecting}
-                >
-                  {connecting ? 'Connecting...' : 'Connect to AI'}
-                </button>
-                <span className={`status-indicator ${isGptConnected ? 'on' : 'off'}`}>
-                  {isGptConnected ? 'ON' : 'OFF'}
-                </span>
-              </div>
+          <div className="api-input-group">
+            <input
+              type="password"
+              placeholder="Enter JIRA API Key"
+              className="api-key-input"
+              value={jiraApiKey}
+              onChange={(e) => setJiraApiKey(e.target.value)}
+            />
+            <button 
+              className="connect-btn"
+              onClick={handleJiraConnect}
+              disabled={connecting}
+            >
+              {connecting ? 'Connecting...' : 'Link to JIRA'}
+            </button>
+            <span className={`status-indicator ${isJiraConnected ? 'on' : 'off'}`}>
+              {isJiraConnected ? 'ON' : 'OFF'}
+            </span>
+          </div>
+          
+          <div className="api-input-group">
+            <input
+              type="password"
+              placeholder="Enter ChatGPT API Key"
+              className="api-key-input"
+              value={gptApiKey}
+              onChange={(e) => setGptApiKey(e.target.value)}
+            />
+            <button 
+              className={`connect-btn ${isGptConnected ? 'connected' : ''}`}
+              onClick={handleGptConnect}
+              disabled={connecting}
+            >
+              {connecting ? 'Connecting...' : 'Connect to AI'}
+            </button>
+            <button
+              className="clear-btn"
+              onClick={handleClearGptKey}
+              disabled={connecting}
+            >
+              Clear
+            </button>
+            <span className={`status-indicator ${isGptConnected ? 'on' : 'off'}`}>
+              {isGptConnected ? 'ON' : 'OFF'}
+            </span>
+          </div>
 
-              <div className="input-group">
-                <input
-                  type="text"
-                  placeholder="JIRA Link"
-                  value={jiraLink}
-                  onChange={(e) => setJiraLink(e.target.value)}
-                  className="jira-link-input"
-                />
-                <div style={tooltipStyle}>
-                  <button
-                    className="generate-btn"
-                    onClick={handleJiraTestCaseValidation}
-                    disabled={isValidating || !isJiraConnected || !isGptConnected}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.nextElementSibling.style.visibility = 'visible';
-                      e.currentTarget.nextElementSibling.style.opacity = '1';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.nextElementSibling.style.visibility = 'hidden';
-                      e.currentTarget.nextElementSibling.style.opacity = '0';
-                    }}
-                  >
-                    {isValidating ? 'Validating...' : 'Generate Report from JIRA Link'}
-                  </button>
-                  <div style={tooltipTextStyle}>
-                    Enter the JIRA User Story# (already existing in JIRA) for which you want to generate test case using AI
-                  </div>
-                </div>
+          <div className="input-group">
+            <input
+              type="text"
+              placeholder="JIRA Link"
+              value={jiraLink}
+              onChange={(e) => setJiraLink(e.target.value)}
+              className="jira-link-input"
+            />
+            <div style={tooltipStyle}>
+              <button
+                className="generate-btn"
+                onClick={handleJiraTestCaseValidation}
+                disabled={isValidating || !isJiraConnected || !isGptConnected}
+                onMouseEnter={(e) => {
+                  e.currentTarget.nextElementSibling.style.visibility = 'visible';
+                  e.currentTarget.nextElementSibling.style.opacity = '1';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.nextElementSibling.style.visibility = 'hidden';
+                  e.currentTarget.nextElementSibling.style.opacity = '0';
+                }}
+              >
+                {isValidating ? 'Validating...' : 'Generate Report from JIRA Link'}
+              </button>
+              <div style={tooltipTextStyle}>
+                Enter the JIRA User Story# (already existing in JIRA) for which you want to generate test case using AI
               </div>
-              
-              <div className="test-case-section">
-                <textarea
-                  placeholder="Enter Test Case"
-                  className="test-case-input"
-                  value={testCase}
-                  onChange={handleTestCaseChange}
-                  rows={4}
-                />
-                
-                <div className="validation-results">
-                  <div className="report-widgets">
-                    <div className="report-widget">
-                      <h3>Checklist Report</h3>
-                      <div className="report-content">
-                        <div className="checklist">
-                          <div className="checklist-item">
-                            <span className={`checkmark ${checklist.scenarios.present ? 'present' : 'missing'}`}>
-                              {checklist.scenarios.present ? '✓' : '✗'}
-                            </span>
-                            <span className="section-name">Scenarios</span>
-                            {checklist.scenarios.count > 0 && (
-                              <span className="count">({checklist.scenarios.count})</span>
-                            )}
-                          </div>
-                          
-                          <div className="checklist-item">
-                            <span className={`checkmark ${checklist.browserConfig.present ? 'present' : 'missing'}`}>
-                              {checklist.browserConfig.present ? '✓' : '✗'}
-                            </span>
-                            <span className="section-name">Browser Configuration</span>
-                            {checklist.browserConfig.count > 0 && (
-                              <span className="count">({checklist.browserConfig.count})</span>
-                            )}
-                          </div>
-                          
-                          <div className="checklist-item">
-                            <span className={`checkmark ${checklist.notes.present ? 'present' : 'missing'}`}>
-                              {checklist.notes.present ? '✓' : '✗'}
-                            </span>
-                            <span className="section-name">Notes</span>
-                          </div>
-                          
-                          <div className="checklist-item">
-                            <span className={`checkmark ${checklist.regressionScenarios.present ? 'present' : 'missing'}`}>
-                              {checklist.regressionScenarios.present ? '✓' : '✗'}
-                            </span>
-                            <span className="section-name">Additional Regression Scenarios</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="report-widget">
-                      <h3>AI Analysis</h3>
-                      <div className="report-content">
-                        {aiAnalysis ? (
-                          <div className="ai-analysis">
-                            {aiAnalysis.split('\n\n').map((section, index) => {
-                              if (section.startsWith('KEY FINDINGS:')) {
-                                return (
-                                  <div key={index} className="analysis-section">
-                                    <div className="section-title">Key Findings</div>
-                                    {section.split('\n').slice(1).map((point, i) => (
-                                      point.trim() && <div key={i} className="key-point">{point.trim()}</div>
-                                    ))}
-                                  </div>
-                                );
-                              } else if (section.startsWith('RECOMMENDATIONS:')) {
-                                return (
-                                  <div key={index} className="analysis-section">
-                                    <div className="section-title">Recommendations</div>
-                                    {section.split('\n').slice(1).map((point, i) => (
-                                      point.trim() && <div key={i} className="recommendation">{point.trim()}</div>
-                                    ))}
-                                  </div>
-                                );
-                              } else if (section.startsWith('DETAILED ANALYSIS:')) {
-                                return (
-                                  <div key={index} className="analysis-section">
-                                    <div className="section-title">Detailed Analysis</div>
-                                    <div className="analysis-text">{section.split('\n').slice(1).join('\n')}</div>
-                                  </div>
-                                );
-                              }
-                              return null;
-                            })}
-                          </div>
-                        ) : (
-                          <div className="placeholder-text">
-                            AI analysis will appear here after generating the report
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="report-widgets">
-              {/* ... existing report widgets ... */}
             </div>
           </div>
+          
+          <div className="test-case-section">
+            <textarea
+              placeholder="Enter Test Case"
+              className="test-case-input"
+              value={testCase}
+              onChange={handleTestCaseChange}
+              rows={4}
+            />
+            
+            <div className="validation-results">
+              <div className="report-widgets">
+                <div className="report-widget">
+                  <h3>Checklist Report</h3>
+                  <div className="report-content">
+                    <div className="checklist">
+                      <div className="checklist-item">
+                        <span className={`checkmark ${checklist.scenarios.present ? 'present' : 'missing'}`}>
+                          {checklist.scenarios.present ? '✓' : '✗'}
+                        </span>
+                        <span className="section-name">Scenarios</span>
+                        {checklist.scenarios.count > 0 && (
+                          <span className="count">({checklist.scenarios.count})</span>
+                        )}
+                      </div>
+                      
+                      <div className="checklist-item">
+                        <span className={`checkmark ${checklist.browserConfig.present ? 'present' : 'missing'}`}>
+                          {checklist.browserConfig.present ? '✓' : '✗'}
+                        </span>
+                        <span className="section-name">Browser Configuration</span>
+                        {checklist.browserConfig.count > 0 && (
+                          <span className="count">({checklist.browserConfig.count})</span>
+                        )}
+                      </div>
+                      
+                      <div className="checklist-item">
+                        <span className={`checkmark ${checklist.notes.present ? 'present' : 'missing'}`}>
+                          {checklist.notes.present ? '✓' : '✗'}
+                        </span>
+                        <span className="section-name">Notes</span>
+                      </div>
+                      
+                      <div className="checklist-item">
+                        <span className={`checkmark ${checklist.regressionScenarios.present ? 'present' : 'missing'}`}>
+                          {checklist.regressionScenarios.present ? '✓' : '✗'}
+                        </span>
+                        <span className="section-name">Additional Regression Scenarios</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="report-widget">
+                  <h3>AI Analysis</h3>
+                  <div className="report-content">
+                    {aiAnalysis ? (
+                      <div className="ai-analysis">
+                        {aiAnalysis.split('\n\n').map((section, index) => {
+                          if (section.startsWith('KEY FINDINGS:')) {
+                            return (
+                              <div key={index} className="analysis-section">
+                                <div className="section-title">Key Findings</div>
+                                {section.split('\n').slice(1).map((point, i) => (
+                                  point.trim() && <div key={i} className="key-point">{point.trim()}</div>
+                                ))}
+                              </div>
+                            );
+                          } else if (section.startsWith('RECOMMENDATIONS:')) {
+                            return (
+                              <div key={index} className="analysis-section">
+                                <div className="section-title">Recommendations</div>
+                                {section.split('\n').slice(1).map((point, i) => (
+                                  point.trim() && <div key={i} className="recommendation">{point.trim()}</div>
+                                ))}
+                              </div>
+                            );
+                          } else if (section.startsWith('DETAILED ANALYSIS:')) {
+                            return (
+                              <div key={index} className="analysis-section">
+                                <div className="section-title">Detailed Analysis</div>
+                                <div className="analysis-text">{section.split('\n').slice(1).join('\n')}</div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })}
+                      </div>
+                    ) : (
+                      <div className="placeholder-text">
+                        AI analysis will appear here after generating the report
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="report-widgets">
+          {/* ... existing report widgets ... */}
         </div>
       </div>
     </div>
