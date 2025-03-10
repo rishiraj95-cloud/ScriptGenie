@@ -1571,7 +1571,7 @@ function AIEnabledAutomation() {
   const [error, setError] = useState(null);
   const [backendLogs, setBackendLogs] = useState([]);
   const [isGptConnected, setIsGptConnected] = useState(false);
-  const [gptApiKey, setGptApiKey] = useState('');
+  const [gptApiKey, setGptApiKey] = useState(() => localStorage.getItem('automationGptApiKey') || '');
   const [connecting, setConnecting] = useState(false);
   const [testCase, setTestCase] = useState('');
   const [generating, setGenerating] = useState(false);
@@ -1655,7 +1655,6 @@ function AIEnabledAutomation() {
   const handleGptConnect = async () => {
     if (!gptApiKey) {
       setError('Please enter ChatGPT API Key');
-      setBackendLogs(prev => [...prev, 'Error: ChatGPT API Key is required']);
       return;
     }
     
@@ -1663,8 +1662,6 @@ function AIEnabledAutomation() {
     setError(null);
     
     try {
-      console.log('Attempting to connect to ChatGPT...');
-      setBackendLogs(prev => [...prev, 'Attempting to connect to ChatGPT...']);
       const response = await fetch('http://localhost:8000/api/video/verify-chatgpt', {
         method: 'POST',
         headers: {
@@ -1673,19 +1670,21 @@ function AIEnabledAutomation() {
         body: JSON.stringify({ api_key: gptApiKey })
       });
       
-      console.log('Raw response status:', response.status);
-      console.log('Raw response headers:', response.headers);
-      
       if (!response.ok) {
         throw new Error('Failed to verify ChatGPT connection');
       }
       
       const data = await response.json();
-      setIsGptConnected(data.valid);
-      setBackendLogs(prev => [...prev, 'Successfully connected to ChatGPT']);
+      
+      if (data.valid) {
+        setIsGptConnected(true);
+        localStorage.setItem('automationGptApiKey', gptApiKey);  // Save to localStorage
+        setError(null);
+      } else {
+        throw new Error('Failed to connect to ChatGPT');
+      }
     } catch (err) {
       setError(err.message);
-      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
       setIsGptConnected(false);
     } finally {
       setConnecting(false);
@@ -1695,7 +1694,7 @@ function AIEnabledAutomation() {
   const handleGptApiKeyChange = (e) => {
     const newValue = e.target.value;
     setGptApiKey(newValue);
-    localStorage.setItem('gptApiKey', newValue);
+    localStorage.setItem('automationGptApiKey', newValue);
   };
 
   // Get current script based on selected framework
@@ -1966,6 +1965,12 @@ function AIEnabledAutomation() {
     borderWidth: '8px',
     borderStyle: 'solid',
     borderColor: 'transparent #333 transparent transparent'
+  };
+
+  const handleClearGptKey = () => {
+    setGptApiKey('');
+    localStorage.removeItem('automationGptApiKey');  // Remove from localStorage
+    setIsGptConnected(false);
   };
 
   return (
