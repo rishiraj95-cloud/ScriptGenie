@@ -675,13 +675,16 @@ pre {
 }
 
 .script-output {
-  background: white;
-  border: 1px solid #dee2e6;
-  border-radius: 4px;
+  background-color: #f5f5f5;
   padding: 15px;
-  min-height: 150px;
-  max-height: 300px;
-  overflow-y: auto;
+  border-radius: 4px;
+  overflow-x: auto;
+  white-space: pre;
+  font-family: monospace;
+  width: 100%;
+  min-height: 300px;
+  resize: vertical;
+  border: 1px solid #ddd;
 }
 
 .script-output pre {
@@ -1676,4 +1679,15 @@ pre {
 
 .section-content.collapsed {
   max-height: 0;
+}
+
+.test-case-editor {
+  width: 100%;
+  min-height: 300px;
+  font-family: monospace;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  resize: vertical;
+  white-space: pre;
 }

@@ -334,7 +334,12 @@ function ScriberTestCaseGenerator({
           <div className="test-cases">
             <h2>Generated Test Cases</h2>
             <div className="test-case-output">
-              <pre>{typeof testCases === 'string' ? testCases : formatTestCases(testCases)}</pre>
+              <textarea
+                className="test-case-editor"
+                value={typeof testCases === 'string' ? testCases : formatTestCases(testCases)}
+                onChange={(e) => setTestCases(e.target.value)}
+                spellCheck="false"
+              />
             </div>
           </div>
         )}
@@ -1367,7 +1372,12 @@ function TestCaseGeneration() {
             </button>
           </div>
           <div className="test-case-output">
-            <pre>{generatedTestCases || 'Generated test cases will appear here'}</pre>
+            <textarea
+              className="test-case-editor"
+              value={generatedTestCases || 'Generated test cases will appear here'}
+              onChange={(e) => setGeneratedTestCases(e.target.value)}
+              spellCheck="false"
+            />
           </div>
           <div className="terminal-section">
             <div className="terminal-header">
@@ -2072,11 +2082,25 @@ function AIEnabledAutomation() {
                  selectedFramework === 'Cucumber' ? 'Cucumber Output' :
                  'Selenium Test Script'}
               </h3>
-              <pre className="script-output">
-                {selectedFramework === 'SAHI Pro' ? (sahiScript || 'Generated SAHI script will appear here') :
-                 selectedFramework === 'Cucumber' ? (cucumberScript || 'Generated Cucumber script will appear here') :
-                 (getCurrentScript() || 'Generated Selenium script will appear here')}
-              </pre>
+              <textarea 
+                className="script-output"
+                value={
+                  selectedFramework === 'SAHI Pro' ? (sahiScript || 'Generated SAHI script will appear here') :
+                  selectedFramework === 'Cucumber' ? (cucumberScript || 'Generated Cucumber script will appear here') :
+                  (getCurrentScript() || 'Generated Selenium script will appear here')
+                }
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  if (selectedFramework === 'SAHI Pro') {
+                    setSahiScript(newValue);
+                  } else if (selectedFramework === 'Cucumber') {
+                    setCucumberScript(newValue);
+                  } else {
+                    setSeleniumScript(newValue);
+                  }
+                }}
+                spellCheck="false"
+              />
               <div className="button-group">
                 <button 
                   className="save-script-btn" 
