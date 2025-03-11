@@ -957,4 +957,51 @@ async def load_script(filename: str):
         )
     except Exception as e:
         print(f"Error loading script: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/upload-script")
+async def upload_script(file: UploadFile = File(...)):
+    """Upload automation script file"""
+    try:
+        # Validate file extension
+        if not any(file.filename.lower().endswith(ext) 
+                  for ext in ['.sah', '.java', '.feature']):
+            raise HTTPException(
+                status_code=400, 
+                detail="Invalid file type. Only .sah, .java, and .feature files are allowed."
+            )
+        
+        file_path = os.path.join(AUTOMATION_SCRIPTS_FOLDER, file.filename)
+        
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        return JSONResponse(
+            status_code=200,
+            content={"filename": file.filename}
+        )
+    except Exception as e:
+        print(f"Error uploading script: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/list-scripts")
+async def list_scripts():
+    """List all saved automation scripts"""
+    try:
+        scripts = []
+        for filename in os.listdir(AUTOMATION_SCRIPTS_FOLDER):
+            if filename.endswith(('.sah', '.java', '.feature')):
+                file_path = os.path.join(AUTOMATION_SCRIPTS_FOLDER, filename)
+                scripts.append({
+                    'name': filename,
+                    'created': datetime.fromtimestamp(os.path.getctime(file_path))
+                        .strftime('%Y-%m-%d %H:%M:%S')
+                })
+        
+        return JSONResponse(
+            status_code=200,
+            content={"scripts": sorted(scripts, key=lambda x: x['created'], reverse=True)}
+        )
+    except Exception as e:
+        print(f"Error listing scripts: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 

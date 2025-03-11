@@ -1572,6 +1572,48 @@ function TestCaseGeneration() {
 }
 
 function AIEnabledAutomation() {
+  // Separate DropZone component
+  const DropZone = ({ onUpload, setBackendLogs }) => {
+    const handleDrop = (e) => {
+      e.preventDefault();
+      const files = [...e.dataTransfer.files];
+      handleFiles(files);
+    };
+  
+    const handleFiles = (files) => {
+      const validExtensions = ['.sah', '.java', '.feature'];
+      files.forEach(file => {
+        if (validExtensions.some(ext => file.name.toLowerCase().endsWith(ext))) {
+          onUpload(file);
+        } else {
+          setBackendLogs(prev => [...prev, `Invalid file type: ${file.name}`]);
+        }
+      });
+    };
+  
+    return (
+      <div 
+        className="drop-zone"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleDrop}
+        onClick={() => document.getElementById('file-input').click()}
+      >
+        <input
+          id="file-input"
+          type="file"
+          accept=".sah,.java,.feature"
+          onChange={(e) => handleFiles([...e.target.files])}
+          style={{ display: 'none' }}
+          multiple
+        />
+        <div className="drop-zone-content">
+          <span>Drop files here or click to upload</span>
+          <small>Supported: .sah, .java, .feature</small>
+        </div>
+      </div>
+    );
+  };
+
   // Script states
   const [seleniumScript, setSeleniumScript] = useState('');
   const [sahiScript, setSahiScript] = useState('');
@@ -1762,7 +1804,7 @@ function AIEnabledAutomation() {
     }
   };
 
-  // Fetch saved scripts on component mount
+  // Fetch saved scripts on mount
   useEffect(() => {
     const fetchSavedScripts = async () => {
       try {
@@ -2018,6 +2060,26 @@ function AIEnabledAutomation() {
     }
   };
 
+  const handleFileUpload = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const response = await fetch('http://localhost:8000/api/video/upload-script', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) throw new Error('Failed to upload file');
+      
+      setBackendLogs(prev => [...prev, `Successfully uploaded: ${file.name}`]);
+      // Refresh saved scripts list
+      fetchSavedScripts();
+    } catch (err) {
+      setBackendLogs(prev => [...prev, `Error uploading ${file.name}: ${err.message}`]);
+    }
+  };
+
   return (
     <div className="container">
       <div className="main-panel">
@@ -2203,6 +2265,10 @@ function AIEnabledAutomation() {
               <span className={`collapse-arrow ${isSavedScriptsCollapsed ? 'collapsed' : ''}`}>▼</span>
             </div>
             <div className={`section-content ${isSavedScriptsCollapsed ? 'collapsed' : ''}`}>
+              <DropZone 
+                onUpload={handleFileUpload}
+                setBackendLogs={setBackendLogs}
+              />
               <div className="saved-scripts-list">
                 {savedScripts.length > 0 ? (
                   <table className="saved-scripts-table">

@@ -1691,3 +1691,85 @@ pre {
   resize: vertical;
   white-space: pre;
 }
+
+.drop-zone {
+  border: 2px dashed #ccc;
+  border-radius: 4px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  margin: 10px 0;
+  transition: all 0.3s ease;
+}
+
+.drop-zone.drag-over {
+  border-color: #2196f3;
+  background: rgba(33, 150, 243, 0.1);
+}
+
+.drop-zone-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.drop-zone-content small {
+  color: #666;
+}
+
+.saved-scripts-list {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+/* Custom scrollbar styling */
+.saved-scripts-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.saved-scripts-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.saved-scripts-list::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.saved-scripts-list::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Firefox scrollbar styling */
+.saved-scripts-list {
+  scrollbar-width: thin;
+  scrollbar-color: #888 #f1f1f1;
+}
+
+.drop-zone.upload-success {
+  border-color: #28a745;
+  background: rgba(40, 167, 69, 0.1);
+  animation: pulse 1.5s ease-in-out forwards;
+  position: relative;
+}
+
+.drop-zone.upload-success::after {
+  content: '✓ Upload Successful';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #28a745;
+  font-weight: bold;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 8px 16px;
+  border-radius: 4px;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
