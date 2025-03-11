@@ -1976,6 +1976,38 @@ function AIEnabledAutomation() {
   // ... existing state variables ...
   const [isSavedScriptsCollapsed, setSavedScriptsCollapsed] = useState(false);
 
+  // Add new handler function
+  const handleLoadScript = async (filename) => {
+    try {
+      const extension = filename.split('.').pop();
+      const frameworkMap = {
+        'sah': 'SAHI Pro',
+        'java': 'Selenium',
+        'feature': 'Cucumber'
+      };
+      
+      // Switch framework if needed
+      if (frameworkMap[extension] !== selectedFramework) {
+        setSelectedFramework(frameworkMap[extension]);
+      }
+      
+      // Fetch script content
+      const response = await fetch(`http://localhost:8000/api/video/load-script/${filename}`);
+      if (!response.ok) throw new Error('Failed to load script');
+      
+      const { script } = await response.json();
+      
+      // Update appropriate script state
+      if (extension === 'sah') setSahiScript(script);
+      else if (extension === 'java') setSeleniumScript(script);
+      else if (extension === 'feature') setCucumberScript(script);
+      
+      setBackendLogs(prev => [...prev, `Successfully loaded script: ${filename}`]);
+    } catch (err) {
+      setBackendLogs(prev => [...prev, `Error loading script: ${err.message}`]);
+    }
+  };
+
   return (
     <div className="container">
       <div className="main-panel">
@@ -2170,11 +2202,18 @@ function AIEnabledAutomation() {
                           </td>
                           <td className="script-date">{script.created}</td>
                           <td>
-                            <button
-                              className="download-btn"
-                              onClick={() => handleDownloadScript(script.name)}
-                            >
+                            <button className="download-btn" onClick={() => handleDownloadScript(script.name)}>
                               Download
+                            </button>
+                            <button 
+                              className="load-script-btn" 
+                              onClick={() => handleLoadScript(script.name)}
+                              style={{
+                                backgroundColor: '#3498db',
+                                marginLeft: '8px'
+                              }}
+                            >
+                              Load Script
                             </button>
                           </td>
                         </tr>

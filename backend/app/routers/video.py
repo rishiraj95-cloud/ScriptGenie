@@ -938,4 +938,23 @@ async def download_backfill_test_cases():
         )
     except Exception as e:
         print(f"Error creating zip file: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/load-script/{filename}")
+async def load_script(filename: str):
+    """Load script content from file"""
+    try:
+        file_path = os.path.join(AUTOMATION_SCRIPTS_FOLDER, filename)
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="Script not found")
+            
+        with open(file_path, 'r') as f:
+            content = f.read()
+            
+        return JSONResponse(
+            status_code=200,
+            content={"script": content}
+        )
+    except Exception as e:
+        print(f"Error loading script: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 
