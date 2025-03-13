@@ -6,4 +6,6 @@ pdf2image
 openai==0.28.1
 python-dotenv
 uvicorn
-jira 
+jira
+pdfplumber  # For PDF image extraction without external dependencies
+PyMuPDF==1.23.8  # For PDF image extraction 

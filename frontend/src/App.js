@@ -19,7 +19,9 @@ function ScriberTestCaseGenerator({
   formatTestCases,
   setError,
   setBackendLogs,
-  setLoading
+  setLoading,
+  setFrames,
+  setIsVideo
 }) {
   const [jiraApiKey, setJiraApiKey] = useState(() => localStorage.getItem('scriberJiraApiKey') || '');
   const [gptApiKey, setGptApiKey] = useState(() => localStorage.getItem('scriberGptApiKey') || '');
@@ -220,6 +222,56 @@ function ScriberTestCaseGenerator({
     setBackendLogs(prev => [...prev, 'Cleared ChatGPT API Key']);
   };
 
+  const handleExtractScreenshots = async () => {
+    if (!isGptConnected) {
+      setError('AI not connected! Connect AI!');
+      setBackendLogs(prev => [...prev, 'Error: AI not connected']);
+      return;
+    }
+    
+    if (!file || !isPdfFile(file)) {
+      setError('No Scribe/PDF uploaded!');
+      setBackendLogs(prev => [...prev, 'Error: No Scribe/PDF file uploaded']);
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('api_key', gptApiKey);
+    
+    try {
+      setBackendLogs(prev => [...prev, 'Starting screenshot extraction...']);
+      
+      const response = await fetch('http://localhost:8000/api/video/extract-screenshots', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to extract screenshots');
+      }
+      
+      if (data.logs) {
+        setBackendLogs(prev => [...prev, ...data.logs]);
+      }
+      
+      setFrames(data.screenshots || []);
+      setIsVideo(true);  // Enable screenshots bundle
+      
+      setBackendLogs(prev => [...prev, 'Successfully extracted screenshots']);
+    } catch (err) {
+      setError(err.message);
+      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="container">
       <div className="main-panel">
@@ -324,6 +376,13 @@ function ScriberTestCaseGenerator({
               disabled={loading || !isGptConnected || !file || !isPdfFile(file)}
             >
               {loading ? 'Processing...' : 'Process Scribe W/ AI'}
+            </button>
+            <button
+              className="screenshots-from-scribe-btn"
+              onClick={handleExtractScreenshots}
+              disabled={loading || !isGptConnected || !file || !isPdfFile(file)}
+            >
+              {loading ? 'Extracting...' : 'Screenshots from Scribe'}
             </button>
           </div>
         </div>
@@ -3014,6 +3073,8 @@ function App() {
             setError={setError}
             setBackendLogs={setBackendLogs}
             setLoading={setLoading}
+            setFrames={setFrames}
+            setIsVideo={setIsVideo}
           />
         ) : activeTab === 'testgen' ? (
           <TestCaseGeneration />

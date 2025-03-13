@@ -14,6 +14,24 @@ from app.utils.jira_helper import JiraHelper
 import json
 from datetime import datetime
 
+# Try to import pdfplumber, but don't crash if it's not available
+try:
+    import pdfplumber
+    PDFPLUMBER_AVAILABLE = True
+    print(f"Successfully imported pdfplumber")
+except ImportError as e:
+    PDFPLUMBER_AVAILABLE = False
+    import sys
+    print(f"pdfplumber import error: {e}")
+    print(f"Python executable: {sys.executable}")
+    print(f"Python version: {sys.version}")
+    print(f"Will use alternative method for PDF processing")
+
+# Import PIL for image processing
+from PIL import Image
+import tempfile
+import re
+
 router = APIRouter(prefix="/api/video", tags=["video"])
 
 UPLOAD_FOLDER = "uploaded_videos"
@@ -24,9 +42,10 @@ TEST_CASES_FOLDER = "saved_test_cases"
 # Define the folder for saving automation scripts
 AUTOMATION_SCRIPTS_FOLDER = "automation_scripts"
 
-# Create the folder if it doesn't exist
-if not os.path.exists(AUTOMATION_SCRIPTS_FOLDER):
-    os.makedirs(AUTOMATION_SCRIPTS_FOLDER)
+# Create necessary directories if they don't exist
+for folder in [UPLOAD_FOLDER, FRAMES_FOLDER, PDF_FOLDER, TEST_CASES_FOLDER, AUTOMATION_SCRIPTS_FOLDER]:
+    os.makedirs(folder, exist_ok=True)
+    print(f"Ensuring directory exists: {os.path.abspath(folder)}")
 
 @router.post("/upload")
 async def upload_video(file: UploadFile = File(...)):
@@ -40,11 +59,6 @@ async def upload_video(file: UploadFile = File(...)):
         
         # Determine file type
         file_extension = os.path.splitext(file.filename)[1].lower()
-        
-        # Create necessary directories
-        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-        os.makedirs(FRAMES_FOLDER, exist_ok=True)
-        os.makedirs(PDF_FOLDER, exist_ok=True)
         
         # Process based on file type
         if file_extension == '.pdf':
@@ -1004,4 +1018,209 @@ async def list_scripts():
         )
     except Exception as e:
         print(f"Error listing scripts: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/extract-screenshots")
+async def extract_screenshots(file: UploadFile = File(...), api_key: str = Form(...)):
+    """Extract embedded images from PDF using pdfplumber"""
+    logs = []
+    def log(message):
+        print(message)
+        logs.append(message)
+    
+    # Initialize variables that will be used in finally block
+    file_path = None
+    screenshots_dir = None
+    
+    try:
+        if not file.filename.lower().endswith('.pdf'):
+            raise HTTPException(status_code=400, detail="Only PDF files are supported")
+        
+        # Save uploaded file
+        file_path = os.path.join(PDF_FOLDER, file.filename)
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Create directory for extracted images
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        screenshots_dir_name = f"screenshots_{timestamp}"
+        screenshots_dir = os.path.join(FRAMES_FOLDER, screenshots_dir_name)
+        os.makedirs(screenshots_dir, exist_ok=True)
+        log(f"Created screenshots directory: {os.path.abspath(screenshots_dir)}")
+        
+        # Extract images from PDF
+        log("Extracting embedded images from PDF...")
+        screenshot_files = []
+        
+        if PDFPLUMBER_AVAILABLE:
+            # Use pdfplumber to extract embedded images
+            log("Using pdfplumber for image extraction")
+            image_count = 0
+            
+            with pdfplumber.open(file_path) as pdf:
+                for page_num, page in enumerate(pdf.pages):
+                    images = page.images
+                    for img_index, img in enumerate(images):
+                        # Get image data
+                        img_data = img["stream"].get_data()
+                        
+                        # Save image
+                        image_count += 1
+                        image_filename = f"image_{image_count}.png"
+                        image_path = os.path.join(screenshots_dir, image_filename)
+                        
+                        with open(image_path, "wb") as img_file:
+                            img_file.write(img_data)
+                        
+                        screenshot_files.append(image_path)
+                        log(f"Extracted image {image_count} from page {page_num+1}")
+            
+            if image_count == 0:
+                log("No embedded images found in the PDF. Extracting pages as images instead.")
+                
+                # If no embedded images, extract pages as images using PIL
+                from pdf2image import convert_from_path
+                try:
+                    # Try using pdf2image if available
+                    images = convert_from_path(file_path, dpi=200)
+                    for i, image in enumerate(images):
+                        image_count += 1
+                        image_filename = f"page_{i+1}.png"
+                        image_path = os.path.join(screenshots_dir, image_filename)
+                        image.save(image_path, "PNG")
+                        screenshot_files.append(image_path)
+                        log(f"Extracted page {i+1} as image")
+                except Exception as e:
+                    log(f"Error using pdf2image: {str(e)}")
+                    log("Falling back to rendering pages as text images")
+                    
+                    # Extract text from PDF using existing function
+                    text_data = extract_text_from_pdf(file_path)
+                    
+                    # Create an image for each page of text
+                    for i, page_text in enumerate(text_data):
+                        # Create a blank image with white background
+                        img = Image.new('RGB', (800, 1000), color='white')
+                        from PIL import ImageDraw, ImageFont
+                        draw = ImageDraw.Draw(img)
+                        
+                        # Use default font
+                        try:
+                            font = ImageFont.truetype("arial.ttf", 14)
+                        except IOError:
+                            font = ImageFont.load_default()
+                        
+                        # Draw text on image
+                        draw.text((20, 20), page_text, fill='black', font=font)
+                        
+                        # Save image
+                        image_count += 1
+                        image_filename = f"page_{i+1}.png"
+                        image_path = os.path.join(screenshots_dir, image_filename)
+                        img.save(image_path)
+                        
+                        screenshot_files.append(image_path)
+                        log(f"Created text image for page {i+1}")
+        else:
+            log("pdfplumber not available. Cannot extract embedded images.")
+            raise HTTPException(
+                status_code=500, 
+                detail="pdfplumber is required for image extraction. Please install it with 'pip install pdfplumber'"
+            )
+        
+        # Create a ZIP file containing all screenshots
+        zip_filename = f"screenshots_{timestamp}.zip"
+        zip_path = os.path.join(FRAMES_FOLDER, zip_filename)
+        
+        with zipfile.ZipFile(zip_path, 'w') as zipf:
+            for file in screenshot_files:
+                zipf.write(file, os.path.basename(file))
+        
+        log(f"Created ZIP file with {len(screenshot_files)} images: {os.path.abspath(zip_path)}")
+        
+        # Create download URL for the ZIP file
+        zip_url = f"/api/video/download-screenshots/{zip_filename}"
+        
+        # Set to None to prevent cleanup in finally block
+        temp_screenshots_dir = screenshots_dir
+        screenshots_dir = None
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "zip_url": zip_url,
+                "image_count": len(screenshot_files),
+                "logs": logs
+            }
+        )
+    except Exception as e:
+        import traceback
+        log(f"Error extracting images: {str(e)}")
+        log(f"Traceback: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e), "logs": logs}
+        )
+    finally:
+        # Cleanup uploaded file
+        if file_path and os.path.exists(file_path):
+            os.remove(file_path)
+        # Don't remove screenshots_dir here as we need it for the ZIP file
+        if screenshots_dir and os.path.exists(screenshots_dir):
+            log(f"WARNING: Cleaning up screenshots directory that should be kept: {screenshots_dir}")
+            # We should not reach here if everything works correctly
+            # shutil.rmtree(screenshots_dir)
+
+@router.get("/frame/{dir_name}/{file_name}")
+async def get_screenshot(dir_name: str, file_name: str):
+    """Serve a screenshot image"""
+    try:
+        print(f"Requested image: dir_name={dir_name}, file_name={file_name}")
+        
+        file_path = os.path.join(FRAMES_FOLDER, dir_name, file_name)
+        abs_path = os.path.abspath(file_path)
+        print(f"Looking for image at: {abs_path}")
+        
+        if not os.path.exists(file_path):
+            print(f"Image not found at path: {abs_path}")
+            # Check if the directory exists
+            dir_path = os.path.join(FRAMES_FOLDER, dir_name)
+            if os.path.exists(dir_path):
+                print(f"Directory exists: {dir_path}")
+                print(f"Files in directory: {os.listdir(dir_path)}")
+            else:
+                print(f"Directory does not exist: {dir_path}")
+                print(f"Files in parent directory: {os.listdir(FRAMES_FOLDER)}")
+            
+            raise HTTPException(status_code=404, detail=f"Image not found: {file_name}")
+        
+        print(f"Serving image: {abs_path}")
+        return FileResponse(
+            path=file_path,
+            media_type="image/png",  # Adjust based on actual image type
+            filename=file_name
+        )
+    except Exception as e:
+        print(f"Error serving image: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Error serving image: {str(e)}")
+
+@router.get("/download-screenshots/{zip_filename}")
+async def download_screenshots(zip_filename: str):
+    """Download a ZIP file containing screenshots"""
+    try:
+        file_path = os.path.join(FRAMES_FOLDER, zip_filename)
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="ZIP file not found")
+        
+        return FileResponse(
+            path=file_path,
+            media_type="application/zip",
+            filename=zip_filename
+        )
+    except Exception as e:
+        print(f"Error downloading screenshots: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Error downloading screenshots: {str(e)}") 
