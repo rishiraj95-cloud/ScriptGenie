@@ -21,7 +21,9 @@ function ScriberTestCaseGenerator({
   setBackendLogs,
   setLoading,
   setFrames,
-  setIsVideo
+  setIsVideo,
+  screenshotZipUrl,
+  setScreenshotZipUrl
 }) {
   const [jiraApiKey, setJiraApiKey] = useState(() => localStorage.getItem('scriberJiraApiKey') || '');
   const [gptApiKey, setGptApiKey] = useState(() => localStorage.getItem('scriberGptApiKey') || '');
@@ -105,8 +107,8 @@ function ScriberTestCaseGenerator({
         setBackendLogs(prev => [...prev, ...data.logs]);
       }
       
-      // Set test cases directly as string
-      setTestCases(data.test_cases || '');
+      // Ensure testCases is always an array
+      setTestCases(Array.isArray(data.test_cases) ? data.test_cases : [data.test_cases].filter(Boolean));
     } catch (err) {
       setError(err.message);
       setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
@@ -260,10 +262,15 @@ function ScriberTestCaseGenerator({
         setBackendLogs(prev => [...prev, ...data.logs]);
       }
       
-      setFrames(data.screenshots || []);
+      // If we have a ZIP URL, open it in a new tab for download
+      if (data.zip_url) {
+        const zipUrl = `http://localhost:8000${data.zip_url}`;
+        window.open(zipUrl, '_blank');
+        setBackendLogs(prev => [...prev, `Successfully extracted ${data.image_count || 0} screenshots. Download started.`]);
+      }
+      
       setIsVideo(true);  // Enable screenshots bundle
       
-      setBackendLogs(prev => [...prev, 'Successfully extracted screenshots']);
     } catch (err) {
       setError(err.message);
       setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
@@ -422,40 +429,33 @@ function ScriberTestCaseGenerator({
           <div className="screenshots-bundle">
             <div className="panel-header">
               <h2>Screenshots Bundle</h2>
-              {frames.length > 0 && (
-                <button 
-                  className="download-all-btn"
-                  onClick={handleDownloadAll}
-                >
-                  Download All
-                </button>
-              )}
+              <button className="download-all-btn" onClick={handleDownloadAll}>Download All</button>
             </div>
+            
+            {screenshotZipUrl && (
+              <div className="screenshot-download">
+                <p>Screenshots extracted successfully!</p>
+                <a 
+                  href={screenshotZipUrl} 
+                  className="download-button"
+                  download
+                >
+                  Download Screenshots ZIP
+                </a>
+              </div>
+            )}
+            
             <div className="screenshots-list">
               {frames.length > 0 ? (
                 frames.map((frame, index) => (
-                  <a 
+                  <a
                     key={index}
-                    href={`http://localhost:8000/api/video/frame/${encodeURIComponent(frame)}`}
-                    download={`picture_${index + 1}.jpg`}
+                    href={frame}
                     className="screenshot-link"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      fetch(`http://localhost:8000/api/video/frame/${encodeURIComponent(frame)}`)
-                        .then(response => response.blob())
-                        .then(blob => {
-                          const url = window.URL.createObjectURL(blob);
-                          const a = document.createElement('a');
-                          a.href = url;
-                          a.download = `picture_${index + 1}.jpg`;
-                          document.body.appendChild(a);
-                          a.click();
-                          window.URL.revokeObjectURL(url);
-                          document.body.removeChild(a);
-                        });
-                    }}
+                    target="_blank"
+                    rel="noopener noreferrer"
                   >
-                    {`${index + 1}. Picture ${index + 1}`}
+                    Screenshot {index + 1}
                   </a>
                 ))
               ) : (
@@ -470,42 +470,54 @@ function ScriberTestCaseGenerator({
 }
 
 function TestCaseGeneration() {
-  const [jiraApiKey, setJiraApiKey] = useState(() => {
-    return localStorage.getItem('jiraApiKey') || '';
-  });
-  const [gptApiKey, setGptApiKey] = useState(() => {
-    return localStorage.getItem('gptApiKey') || '';
-  });
-  const [jiraLink, setJiraLink] = useState('');
-  const [userStory, setUserStory] = useState('');
-  const [isGptConnected, setIsGptConnected] = useState(false);
-  const [connecting, setConnecting] = useState(false);
+  const [file, setFile] = useState(null);
+  const [testCases, setTestCases] = useState('');  // Initialize as empty string instead of array
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [isJiraConnected, setIsJiraConnected] = useState(false);
-  const [jiraConnecting, setJiraConnecting] = useState(false);
   const [backendLogs, setBackendLogs] = useState([]);
-  const [isGptEnabled, setIsGptEnabled] = useState(false);
-  const [generatedTestCases, setGeneratedTestCases] = useState('');
-  const [generating, setGenerating] = useState(false);
+  const [frames, setFrames] = useState([]);
+  const [isVideo, setIsVideo] = useState(false);
+  const [jiraApiKey, setJiraApiKey] = useState('');
+  const [gptApiKey, setGptApiKey] = useState('');
+  const [isJiraConnected, setIsJiraConnected] = useState(false);
+  const [isGptConnected, setIsGptConnected] = useState(false);
+  const [isGptEnabled, setIsGptEnabled] = useState(true);
   const [savedTestCases, setSavedTestCases] = useState([]);
-  const [savingTestCases, setSavingTestCases] = useState(false);
-  const [gherkinScript, setGherkinScript] = useState('');
-  const [improvementPrompt, setImprovementPrompt] = useState('');
-  const [previousGherkin, setPreviousGherkin] = useState('');
-  const [improving, setImproving] = useState(false);
   const [selectedTestCases, setSelectedTestCases] = useState([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [userStory, setUserStory] = useState('');
+  const [connecting, setConnecting] = useState(false);
+  const [gherkinScript, setGherkinScript] = useState('');
+  const [showPushModal, setShowPushModal] = useState(false);
+  const [jiraLink, setJiraLink] = useState('');
+  const [jiraTestCaseLink, setJiraTestCaseLink] = useState('');
+  const [userStoryLink, setUserStoryLink] = useState('');
+  const [isPushing, setIsPushing] = useState(false);
+  const [selectedFramework, setSelectedFramework] = useState('');
   const [terminalInput, setTerminalInput] = useState('');
   const [previousTestCase, setPreviousTestCase] = useState('');
   const [isImproving, setIsImproving] = useState(false);
   const [isSavedTestCasesCollapsed, setSavedTestCasesCollapsed] = useState(false);
   const [hoveredStats, setHoveredStats] = useState(null);
   const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
-  const [jiraTestCaseLink, setJiraTestCaseLink] = useState('');
-  const [showPushModal, setShowPushModal] = useState(false);
-  const [userStoryLink, setUserStoryLink] = useState('');
-  const [isPushing, setIsPushing] = useState(false);
-  const [selectedFramework, setSelectedFramework] = useState('');
+  const [improvementPrompt, setImprovementPrompt] = useState('');
+  const [previousGherkin, setPreviousGherkin] = useState('');
+  const [improving, setImproving] = useState(false);
+  const [savedScripts, setSavedScripts] = useState([]);
+
+  const fetchSavedScripts = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/api/saved-scripts');
+      const data = await response.json();
+      setSavedScripts(data);
+    } catch (error) {
+      console.error('Error fetching saved scripts:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchSavedScripts();
+  }, []);
 
   // Add style for push to JIRA button
   const pushToJiraButtonStyle = {
@@ -568,12 +580,12 @@ function TestCaseGeneration() {
   };
 
   const handleSaveTestCases = async () => {
-    if (!generatedTestCases) {
+    if (!testCases.length) {
       setError('No test cases to save');
       return;
     }
     
-    setSavingTestCases(true);
+    setLoading(true);
     try {
       const response = await fetch('http://localhost:8000/api/video/save-test-cases', {
         method: 'POST',
@@ -581,7 +593,7 @@ function TestCaseGeneration() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          test_cases: generatedTestCases
+          test_cases: testCases
         })
       });
       
@@ -593,7 +605,7 @@ function TestCaseGeneration() {
       setError(err.message);
       setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
     } finally {
-      setSavingTestCases(false);
+      setLoading(false);
     }
   };
 
@@ -683,7 +695,7 @@ function TestCaseGeneration() {
       return;
     }
     
-    setJiraConnecting(true);
+    setConnecting(true);
     setError(null);
     
     try {
@@ -720,7 +732,7 @@ function TestCaseGeneration() {
       setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
       console.error('JIRA verification error:', err);
     } finally {
-      setJiraConnecting(false);
+      setConnecting(false);
     }
   };
 
@@ -754,7 +766,7 @@ function TestCaseGeneration() {
       return;
     }
     
-    setGenerating(true);
+    setLoading(true);
     setError(null);
     
     try {
@@ -775,13 +787,13 @@ function TestCaseGeneration() {
       }
       
       const data = await response.json();
-      setGeneratedTestCases(data.test_cases);
+      setTestCases(normalizeTestCases(data.test_cases));
       setBackendLogs(prev => [...prev, 'Successfully generated test cases']);
     } catch (err) {
       setError(err.message);
       setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
     } finally {
-      setGenerating(false);
+      setLoading(false);
     }
   };
 
@@ -834,7 +846,7 @@ function TestCaseGeneration() {
       }
       
       const cucumberData = await cucumberResponse.json();
-      setGeneratedTestCases(cucumberData.script);
+      setTestCases(cucumberData.script);
       
     } catch (err) {
       setError(err.message);
@@ -943,14 +955,14 @@ function TestCaseGeneration() {
       return;
     }
     
-    if (!generatedTestCases) {
+    if (!testCases.length) {
       setError('No test cases to improve');
       return;
     }
     
     setIsImproving(true);
     setError(null);
-    setPreviousTestCase(generatedTestCases);
+    setPreviousTestCase(testCases);
     
     try {
       const response = await fetch('http://localhost:8000/api/video/improve-test-cases', {
@@ -959,7 +971,7 @@ function TestCaseGeneration() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          test_cases: generatedTestCases,
+          test_cases: testCases,
           prompt: terminalInput,
           api_key: gptApiKey
         })
@@ -970,7 +982,7 @@ function TestCaseGeneration() {
       }
       
       const data = await response.json();
-      setGeneratedTestCases(data.improved_test_cases);
+      setTestCases(data.improved_test_cases);
       setBackendLogs(prev => [...prev, 'Successfully improved test cases']);
       setTerminalInput('');
     } catch (err) {
@@ -983,7 +995,7 @@ function TestCaseGeneration() {
 
   const handleRevert = () => {
     if (previousTestCase) {
-      setGeneratedTestCases(previousTestCase);
+      setTestCases(previousTestCase);
       setPreviousTestCase('');
       setBackendLogs(prev => [...prev, 'Reverted to previous version']);
     }
@@ -1001,7 +1013,7 @@ function TestCaseGeneration() {
       return;
     }
     
-    setGenerating(true);
+    setLoading(true);
     setError(null);
     
     try {
@@ -1045,14 +1057,14 @@ function TestCaseGeneration() {
       }
       
       const generateData = await generateResponse.json();
-      setGeneratedTestCases(generateData.test_cases);
+      setTestCases(normalizeTestCases(generateData.test_cases));
       setBackendLogs(prev => [...prev, 'Successfully generated test cases']);
     } catch (err) {
       setError(err.message);
       setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
       console.error('Test case generation error:', err);
     } finally {
-      setGenerating(false);
+      setLoading(false);
     }
   };
 
@@ -1069,7 +1081,7 @@ function TestCaseGeneration() {
       return;
     }
     
-    setGenerating(true);
+    setLoading(true);
     setError(null);
     
     try {
@@ -1092,14 +1104,14 @@ function TestCaseGeneration() {
       
       // Format the test case with JIRA prefix
       const formattedTestCase = `JIRA Test Case (${jiraTestCaseLink}):\n\n${data.test_case}`;
-      setGeneratedTestCases(formattedTestCase);
+      setTestCases([formattedTestCase]);
       setBackendLogs(prev => [...prev, 'Successfully fetched test case from JIRA']);
       
     } catch (err) {
       setError(err.message);
       setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
     } finally {
-      setGenerating(false);
+      setLoading(false);
     }
   };
 
@@ -1141,7 +1153,7 @@ function TestCaseGeneration() {
           user_story_key: storyData.key,
           project_key: storyData.projectKey,
           user_story_title: storyData.title,
-          test_case_content: generatedTestCases,
+          test_case_content: testCases,
           api_key: jiraApiKey
         })
       });
@@ -1237,6 +1249,28 @@ function TestCaseGeneration() {
     borderColor: 'transparent #333 transparent transparent'
   };
 
+  // Add this new function to normalize test cases
+  const normalizeTestCases = (data) => {
+    if (!data) return '';
+    if (typeof data === 'string') return data;
+    if (Array.isArray(data)) {
+      return data.map(tc => {
+        if (typeof tc === 'string') return tc;
+        if (tc.name && tc.steps) {
+          let output = `Scenario: ${tc.name}\n`;
+          output += 'Steps:\n';
+          tc.steps.forEach((step, index) => {
+            output += `${index + 1}. ${step.description}\n`;
+            output += `   Expected: ${step.expected_outcome}\n`;
+          });
+          return output;
+        }
+        return JSON.stringify(tc);
+      }).join('\n\n');
+    }
+    return JSON.stringify(data);
+  };
+
   return (
     <div className="container">
       <div className="main-panel">
@@ -1276,14 +1310,14 @@ function TestCaseGeneration() {
               <button 
                 className="connect-btn"
                 onClick={handleJiraConnect}
-                disabled={jiraConnecting}
+                disabled={connecting}
               >
-                {jiraConnecting ? 'Connecting...' : 'Connect'}
+                {connecting ? 'Connecting...' : 'Connect'}
               </button>
               <button 
                 className="clear-btn"
                 onClick={handleClearJiraKey}
-                disabled={jiraConnecting}
+                disabled={connecting}
               >
                 Clear
               </button>
@@ -1329,7 +1363,7 @@ function TestCaseGeneration() {
               <button
                 className="generate-btn"
                 onClick={handleGenerateFromJira}
-                disabled={generating || !isJiraConnected || !isGptConnected}
+                disabled={loading || !isJiraConnected || !isGptConnected}
                 onMouseEnter={(e) => {
                   e.currentTarget.nextElementSibling.style.visibility = 'visible';
                   e.currentTarget.nextElementSibling.style.opacity = '1';
@@ -1339,7 +1373,7 @@ function TestCaseGeneration() {
                   e.currentTarget.nextElementSibling.style.opacity = '0';
                 }}
               >
-                {generating ? 'Generating...' : 'Generate Test Case From US'}
+                {loading ? 'Generating...' : 'Generate Test Case From US'}
               </button>
               <div style={tooltipTextStyle}>
                 Enter the JIRA User Story# (already existing in JIRA) for which you want to generate test case using AI
@@ -1359,7 +1393,7 @@ function TestCaseGeneration() {
                 <button
                   className="generate-btn"
                   onClick={handleGenerateTestCases}
-                  disabled={generating || !isGptEnabled}
+                  disabled={loading || !isGptEnabled}
                   onMouseEnter={(e) => {
                     e.currentTarget.nextElementSibling.style.visibility = 'visible';
                     e.currentTarget.nextElementSibling.style.opacity = '1';
@@ -1370,7 +1404,7 @@ function TestCaseGeneration() {
                   }}
                   style={{ backgroundColor: '#800080' }}  // Purple color
                 >
-                  {generating ? 'Generating...' : 'Generate Test Case'}
+                  {loading ? 'Generating...' : 'Generate Test Case'}
                 </button>
                 <div style={tooltipTextStyle}>
                   Generate Test Case for the User Story in the Input box
@@ -1418,9 +1452,9 @@ function TestCaseGeneration() {
             <button
               className="save-btn"
               onClick={handleSaveTestCases}
-              disabled={savingTestCases}
+              disabled={loading}
             >
-              {savingTestCases ? 'Saving...' : 'Save Test Case'}
+              {loading ? 'Saving...' : 'Save Test Case'}
             </button>
             <button
               className="push-jira-btn"
@@ -1433,8 +1467,8 @@ function TestCaseGeneration() {
           <div className="test-case-output">
             <textarea
               className="test-case-editor"
-              value={generatedTestCases || 'Generated test cases will appear here'}
-              onChange={(e) => setGeneratedTestCases(e.target.value)}
+              value={testCases || 'Generated test cases will appear here'}
+              onChange={(e) => setTestCases(e.target.value)}
               spellCheck="false"
             />
           </div>
@@ -2922,26 +2956,56 @@ function App() {
   const [isVideo, setIsVideo] = useState(false);
 
   const formatTestCases = (testCases) => {
-    // If testCases is already a string, return it directly
-    if (typeof testCases === 'string') {
-      return testCases;
-    }
+    // If null/undefined, return empty string
+    if (!testCases) return '';
     
-    // If it's an array, format it (existing functionality)
+    // If already a string, return as is
+    if (typeof testCases === 'string') return testCases;
+    
+    // If array, process each test case
     if (Array.isArray(testCases)) {
       return testCases.map(tc => {
-        let output = `Scenario: ${tc.name}\n`;
-        output += 'Steps:\n';
-        tc.steps.forEach((step, index) => {
-          output += `${index + 1}. ${step.description}\n`;
-          output += `   Expected: ${step.expected_outcome}\n`;
-        });
-        return output;
-      }).join('\n\n');
+        // If test case is a string, return it directly
+        if (typeof tc === 'string') return tc;
+        
+        // If test case has name and steps properties
+        if (tc && tc.name && Array.isArray(tc.steps)) {
+          let output = `Scenario: ${tc.name}\n`;
+          output += 'Steps:\n';
+          tc.steps.forEach((step, index) => {
+            if (step && typeof step === 'object') {
+              output += `${index + 1}. ${step.description || ''}\n`;
+              output += `   Expected: ${step.expected_outcome || ''}\n`;
+            }
+          });
+          return output;
+        }
+        
+        // If test case is an object but doesn't match expected format
+        if (tc && typeof tc === 'object') {
+          try {
+            return JSON.stringify(tc, null, 2);
+          } catch (e) {
+            return String(tc);
+          }
+        }
+        
+        // Fallback: convert to string
+        return String(tc);
+      }).filter(Boolean).join('\n\n');
     }
     
-    // If neither string nor array, return empty string
-    return '';
+    // If object but not array, try to stringify
+    if (typeof testCases === 'object') {
+      try {
+        return JSON.stringify(testCases, null, 2);
+      } catch (e) {
+        return String(testCases);
+      }
+    }
+    
+    // Final fallback: convert to string
+    return String(testCases);
   };
 
   const handleUpload = async () => {
