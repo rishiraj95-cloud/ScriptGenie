@@ -27,6 +27,7 @@ function ScriberTestCaseGenerator({
 }) {
   const [jiraApiKey, setJiraApiKey] = useState(() => localStorage.getItem('scriberJiraApiKey') || '');
   const [gptApiKey, setGptApiKey] = useState(() => localStorage.getItem('scriberGptApiKey') || '');
+  const [vedaiApiKey, setVedaiApiKey] = useState(() => localStorage.getItem('scriberVedaiApiKey') || '');
   const [isJiraConnected, setIsJiraConnected] = useState(false);
   const [isGptConnected, setIsGptConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -346,6 +347,27 @@ function ScriberTestCaseGenerator({
               <div className="footer"></div>
             </div>
           </div>
+
+          <div className="api-input-group">
+            {/* VedAI Connection */}
+            <input
+              type="password"
+              placeholder="Enter VedAI API Key"
+              value={vedaiApiKey}
+              onChange={(e) => setVedaiApiKey(e.target.value)}
+              className="api-key-input"
+            />
+            <button
+              className="connect-btn"
+            >
+              Connect to Ved AI
+            </button>
+            <button
+              className="clear-btn"
+            >
+              Clear
+            </button>
+          </div>
         </div>
 
         <div className="upload-section">
@@ -471,7 +493,7 @@ function ScriberTestCaseGenerator({
 
 function TestCaseGeneration() {
   const [file, setFile] = useState(null);
-  const [testCases, setTestCases] = useState('');  // Initialize as empty string instead of array
+  const [testCases, setTestCases] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [backendLogs, setBackendLogs] = useState([]);
@@ -479,6 +501,7 @@ function TestCaseGeneration() {
   const [isVideo, setIsVideo] = useState(false);
   const [jiraApiKey, setJiraApiKey] = useState('');
   const [gptApiKey, setGptApiKey] = useState('');
+  const [vedaiApiKey, setVedaiApiKey] = useState(''); // Added for VedAI
   const [isJiraConnected, setIsJiraConnected] = useState(false);
   const [isGptConnected, setIsGptConnected] = useState(false);
   const [isGptEnabled, setIsGptEnabled] = useState(true);
@@ -1352,6 +1375,33 @@ function TestCaseGeneration() {
           </div>
           
           <div className="input-group">
+            <label htmlFor="vedaiApiKey">VedAI API Key</label>
+            <div className="input-with-button">
+              <input
+                type="password"
+                id="vedaiApiKey"
+                value={vedaiApiKey}
+                onChange={(e) => setVedaiApiKey(e.target.value)}
+                placeholder="Enter your VedAI API Key"
+              />
+              <button 
+                className="connect-btn"
+                onClick={() => {}}
+                disabled={connecting}
+              >
+                Connect to Ved AI
+              </button>
+              <button 
+                className="clear-btn"
+                onClick={() => setVedaiApiKey('')}
+                disabled={connecting}
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+          
+          <div className="input-group">
             <input
               type="text"
               id="jiraLink"
@@ -1708,6 +1758,7 @@ function AIEnabledAutomation() {
   };
 
   // Script states
+  const [vedaiApiKey, setVedaiApiKey] = useState(''); // Added for VedAI
   const [seleniumScript, setSeleniumScript] = useState('');
   const [sahiScript, setSahiScript] = useState('');
   const [cucumberScript, setCucumberScript] = useState('');
@@ -2196,7 +2247,35 @@ function AIEnabledAutomation() {
             <span className={`status-indicator ${isGptConnected ? 'on' : 'off'}`}>
               {isGptConnected ? 'ON' : 'OFF'}
             </span>
+            
           </div>
+          
+          </div>
+          <div className="input-group">
+           
+            <div className="input-with-button">
+              <input
+                type="password"
+                id="vedaiApiKey"
+                value={vedaiApiKey}
+                onChange={(e) => setVedaiApiKey(e.target.value)}
+                placeholder="Enter your VedAI API Key"
+              />
+              <button 
+                className="connect-btn"
+                onClick={() => {}}
+                disabled={connecting}
+              >
+                Connect to Ved AI
+              </button>
+              <button 
+                className="clear-btn"
+                onClick={() => setVedaiApiKey('')}
+                disabled={connecting}
+              >
+                Clear
+              </button>
+            </div>
         </div>
 
         {error && <div className="error">{error}</div>}
@@ -2806,7 +2885,6 @@ function TestCaseValidator() {
               {isGptConnected ? 'ON' : 'OFF'}
             </span>
           </div>
-
           <div className="input-group">
             <input
               type="text"
