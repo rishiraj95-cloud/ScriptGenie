@@ -501,8 +501,10 @@ function TestCaseGeneration() {
   const [isVideo, setIsVideo] = useState(false);
   const [jiraApiKey, setJiraApiKey] = useState('');
   const [gptApiKey, setGptApiKey] = useState('');
+  const [vedaiApiKey, setVedaiApiKey] = useState('');
   const [isJiraConnected, setIsJiraConnected] = useState(false);
   const [isGptConnected, setIsGptConnected] = useState(false);
+  const [isVedaiConnected, setIsVedaiConnected] = useState(false);
   const [isGptEnabled, setIsGptEnabled] = useState(true);
   const [savedTestCases, setSavedTestCases] = useState([]);
   const [selectedTestCases, setSelectedTestCases] = useState([]);
@@ -525,6 +527,7 @@ function TestCaseGeneration() {
   const [improvementPrompt, setImprovementPrompt] = useState('');
   const [previousGherkin, setPreviousGherkin] = useState('');
   const [improving, setImproving] = useState(false);
+  const [savedScripts, setSavedScripts] = useState([]);
 
   const fetchSavedScripts = async () => {
     try {
@@ -1292,6 +1295,49 @@ function TestCaseGeneration() {
     return JSON.stringify(data);
   };
 
+  // Add VedAI connection handler
+  const handleVedaiConnect = async () => {
+    if (!vedaiApiKey) {
+      setError('Please enter VedAI API Key');
+      setBackendLogs(prev => [...prev, 'Error: VedAI API Key is required']);
+      return;
+    }
+    
+    setConnecting(true);
+    setError(null);
+    
+    try {
+      setBackendLogs(prev => [...prev, 'Attempting to connect to VedAI...']);
+      const response = await fetch('http://localhost:8000/api/automation/vedai/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ api_key: vedaiApiKey })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to verify VedAI connection');
+      }
+      
+      const data = await response.json();
+      
+      if (data.valid) {
+        setIsVedaiConnected(true);
+        setBackendLogs(prev => [...prev, 'Successfully connected to VedAI']);
+        setError(null);
+      } else {
+        throw new Error('Failed to connect to VedAI');
+      }
+    } catch (err) {
+      setError(err.message);
+      setIsVedaiConnected(false);
+      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+    } finally {
+      setConnecting(false);
+    }
+  };
+
   return (
     <div className="container">
       <div className="main-panel">
@@ -1372,7 +1418,38 @@ function TestCaseGeneration() {
             </div>
           </div>
           
-          
+          <div className="input-group">
+            <div className="input-with-button">
+              <input
+                type="password"
+                id="vedaiApiKey"
+                value={vedaiApiKey}
+                onChange={(e) => setVedaiApiKey(e.target.value)}
+                placeholder="Enter your VedAI API Key"
+              />
+              <button 
+                className={`connect-btn ${isVedaiConnected ? 'connected' : ''}`}
+                onClick={handleVedaiConnect}
+                disabled={connecting}
+              >
+                {connecting ? 'Connecting...' : 'Connect to Ved AI'}
+              </button>
+              <button 
+                className="clear-btn"
+                onClick={() => {
+                  setVedaiApiKey('');
+                  setIsVedaiConnected(false);
+                  setBackendLogs(prev => [...prev, 'Cleared VedAI API Key']);
+                }}
+                disabled={connecting}
+              >
+                Clear
+              </button>
+              <span className={`status-indicator ${isVedaiConnected ? 'on' : 'off'}`}>
+                {isVedaiConnected ? 'ON' : 'OFF'}
+              </span>
+            </div>
+          </div>
           
           <div className="input-group">
             <input
@@ -1731,7 +1808,8 @@ function AIEnabledAutomation() {
   };
 
   // Script states
-  const [vedaiApiKey, setVedaiApiKey] = useState(''); // Added for VedAI
+  const [vedaiApiKey, setVedaiApiKey] = useState('');
+  const [isVedaiConnected, setIsVedaiConnected] = useState(false);
   const [seleniumScript, setSeleniumScript] = useState('');
   const [sahiScript, setSahiScript] = useState('');
   const [cucumberScript, setCucumberScript] = useState('');
@@ -1745,16 +1823,10 @@ function AIEnabledAutomation() {
   const [testCase, setTestCase] = useState('');
   const [generating, setGenerating] = useState(false);
   const [savedScripts, setSavedScripts] = useState([]);
-  
-  // Terminal input states
   const [terminalInput, setTerminalInput] = useState('');
-  
-  // Previous script states
   const [previousSeleniumScript, setPreviousSeleniumScript] = useState('');
   const [previousSahiScript, setPreviousSahiScript] = useState('');
   const [previousCucumberScript, setPreviousCucumberScript] = useState('');
-  
-  // Improving states
   const [isImprovingSelenium, setIsImprovingSelenium] = useState(false);
   const [isImprovingSahi, setIsImprovingSahi] = useState(false);
   const [isImprovingCucumber, setIsImprovingCucumber] = useState(false);
@@ -1764,439 +1836,22 @@ function AIEnabledAutomation() {
     setSelectedFramework(e.target.value);
   };
 
-  // Handle user story input
-  const handleUserStoryChange = (e) => {
-    setUserStory(e.target.value);
-  };
-
-  // Handle script generation
-  const handleGenerateScript = async () => {
-    if (!isGptConnected) {
-      setError('Please connect to AI first');
-      return;
-    }
-    
-    if (!testCase) {
-      setError('Please enter a test case');
-      return;
-    }
-    
-    setGenerating(true);
-    setError(null);
-    
+  // Fetch saved scripts
+  const fetchSavedScripts = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/video/generate-automation-script', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          test_case: testCase,
-          framework: selectedFramework,
-          api_key: gptApiKey
-        })
-      });
-      
+      const response = await fetch('http://localhost:8000/api/video/list-scripts');
       if (!response.ok) {
-        throw new Error('Failed to generate script');
+        throw new Error('Failed to fetch saved scripts');
       }
-      
       const data = await response.json();
-      
-      // Update the appropriate script based on selected framework
-      if (selectedFramework === 'SAHI Pro') {
-        setSahiScript(data.script);
-      } else if (selectedFramework === 'Cucumber') {
-        setCucumberScript(data.script);
-      } else {
-        setSeleniumScript(data.script);
-      }
-      
-      setBackendLogs(prev => [...prev, 'Successfully generated automation script']);
+      setSavedScripts(data.scripts || []);
     } catch (err) {
-      setError(err.message);
-      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const handleGptConnect = async () => {
-    if (!gptApiKey) {
-      setError('Please enter ChatGPT API Key');
-      return;
-    }
-    
-    setConnecting(true);
-    setError(null);
-    
-    try {
-      const response = await fetch('http://localhost:8000/api/video/verify-chatgpt', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ api_key: gptApiKey })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to verify ChatGPT connection');
-      }
-      
-      const data = await response.json();
-      
-      if (data.valid) {
-        setIsGptConnected(true);
-        localStorage.setItem('automationGptApiKey', gptApiKey);  // Save to localStorage
-        setError(null);
-      } else {
-        throw new Error('Failed to connect to ChatGPT');
-      }
-    } catch (err) {
-      setError(err.message);
-      setIsGptConnected(false);
-    } finally {
-      setConnecting(false);
-    }
-  };
-
-  const handleGptApiKeyChange = (e) => {
-    const newValue = e.target.value;
-    setGptApiKey(newValue);
-    localStorage.setItem('automationGptApiKey', newValue);
-  };
-
-  // Get current script based on selected framework
-  const getCurrentScript = () => {
-    const script = selectedFramework === 'SAHI Pro' ? sahiScript :
-                   selectedFramework === 'Cucumber' ? cucumberScript :
-                   seleniumScript;
-                 
-    // Trim any leading/trailing ~~~ or ``` markers
-    return script ? script.replace(/^(~~~|```)\s*python?\s*|[\s\n]*(~~~|```)$/g, '').trim() : '';
-  };
-
-  // Save script handler
-  const handleSaveScript = async () => {
-    const currentScript = getCurrentScript();
-    
-    if (!currentScript) {
-      setError('No script to save');
-      return;
-    }
-    
-    setSaving(true);
-    setError(null);
-    
-    try {
-      const response = await fetch('http://localhost:8000/api/video/save-automation-script', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          script: currentScript,
-          framework: selectedFramework  // Send the full framework name
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to save script');
-      }
-      
-      const data = await response.json();
-      setBackendLogs(prev => [...prev, `Successfully saved script: ${data.filename}`]);
-      
-      // Refresh saved scripts list
-      const scriptsResponse = await fetch('http://localhost:8000/api/video/saved-automation-scripts');
-      if (scriptsResponse.ok) {
-        const scriptsData = await scriptsResponse.json();
-        setSavedScripts(scriptsData.files);
-      }
-    } catch (err) {
-      setError(err.message);
-      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Fetch saved scripts on mount
-  useEffect(() => {
-    const fetchSavedScripts = async () => {
-      try {
-        const response = await fetch('http://localhost:8000/api/video/saved-automation-scripts');
-        if (response.ok) {
-          const data = await response.json();
-          setSavedScripts(data.files);
-        }
-      } catch (err) {
-        console.error('Error fetching saved scripts:', err);
-        setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
-      }
-    };
-    
-    fetchSavedScripts();
-  }, []);
-
-  const handleImproveScript = async (scriptType, input, currentScript) => {
-    if (!isGptConnected) {
-      setError('Please connect to AI first');
-      return;
-    }
-    
-    if (!input.trim()) {
-      setError('Please enter an improvement prompt');
-      return;
-    }
-    
-    // Get the appropriate state setters based on framework
-    const setImproving = {
-      'Selenium': setIsImprovingSelenium,
-      'SAHI Pro': setIsImprovingSahi,
-      'Cucumber': setIsImprovingCucumber
-    }[selectedFramework];
-    
-    const setPrevious = {
-      'Selenium': setPreviousSeleniumScript,
-      'SAHI Pro': setPreviousSahiScript,
-      'Cucumber': setPreviousCucumberScript
-    }[selectedFramework];
-    
-    const setScript = {
-      'Selenium': setSeleniumScript,
-      'SAHI Pro': setSahiScript,
-      'Cucumber': setCucumberScript
-    }[selectedFramework];
-    
-    setImproving(true);
-    setError(null);
-    
-    try {
-      const response = await fetch('http://localhost:8000/api/video/improve-script', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          script: currentScript,
-          improvement_prompt: input,
-          framework: selectedFramework,
-          api_key: gptApiKey
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to improve script');
-      }
-      
-      const data = await response.json();
-      setPrevious(currentScript);
-      setScript(data.improved_script);
-      setBackendLogs(prev => [...prev, 'Successfully improved script']);
-      setTerminalInput(''); // Clear terminal input after successful improvement
-    } catch (err) {
-      setError(err.message);
-      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
-    } finally {
-      setImproving(false);
-    }
-  };
-
-  const handleRevertScript = (scriptType) => {
-    const setPrevious = {
-      'Selenium': setPreviousSeleniumScript,
-      'SAHI Pro': setPreviousSahiScript,
-      'Cucumber': setPreviousCucumberScript
-    }[scriptType];
-    
-    const setScript = {
-      'Selenium': setSeleniumScript,
-      'SAHI Pro': setSahiScript,
-      'Cucumber': setCucumberScript
-    }[scriptType];
-    
-    const previousScript = {
-      'Selenium': previousSeleniumScript,
-      'SAHI Pro': previousSahiScript,
-      'Cucumber': previousCucumberScript
-    }[scriptType];
-    
-    if (previousScript) {
-      setScript(previousScript);
-      setPrevious('');
-      setBackendLogs(prev => [...prev, 'Reverted to previous version']);
-    }
-  };
-
-  const handleDownloadScript = async (filename) => {
-    try {
-      const response = await fetch(`http://localhost:8000/api/video/download-automation-script/${filename}`);
-      if (!response.ok) {
-        throw new Error('Failed to download script');
-      }
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      
-      setBackendLogs(prev => [...prev, `Successfully downloaded script: ${filename}`]);
-    } catch (err) {
-      setError('Failed to download script');
+      console.error('Error fetching saved scripts:', err);
       setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
     }
   };
 
-  // Add new CSS class for the summarize button
-  const summarizeButtonStyle = {
-    backgroundColor: '#FF6B6B',  // Coral red color
-    color: 'white',
-    border: 'none',
-    padding: '8px 16px',
-    borderRadius: '20px',  // More rounded corners
-    cursor: 'pointer',
-    fontWeight: '500',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    marginLeft: '10px',
-    transition: 'all 0.3s ease'
-  };
-
-  // Add style for validate button
-  const validateButtonStyle = {
-    backgroundColor: '#4CAF50',  // Green color
-    color: 'white',
-    border: '2px solid #45a049',
-    padding: '8px 16px',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontWeight: '600',
-    marginLeft: '10px',
-    transition: 'all 0.3s ease',
-    boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-    textTransform: 'uppercase',
-    fontSize: '0.9em',
-    letterSpacing: '0.5px'
-  };
-
-  // Tooltip styles
-  const tooltipStyle = {
-    position: 'relative',
-    display: 'inline-block'
-  };
-  
-  const tooltipTextStyle = {
-    visibility: 'hidden',
-    width: '300px',
-    backgroundColor: '#333',
-    color: '#fff',
-    textAlign: 'left',
-    borderRadius: '6px',
-    padding: '12px 16px',
-    position: 'absolute',
-    zIndex: 1,
-    bottom: '150%',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    opacity: 0,
-    transition: 'opacity 0.3s',
-    fontSize: '14px',
-    lineHeight: '1.6',
-    whiteSpace: 'normal',
-    wordWrap: 'break-word'
-  };
-
-  // Terminal improve button tooltip style
-  const improveButtonTooltipStyle = {
-    ...tooltipTextStyle,
-    width: '350px',
-    left: 'calc(100% + 10px)',  // Position to the right of the button
-    bottom: '50%',              // Align vertically with button
-    transform: 'translateY(50%)',// Center vertically
-    zIndex: 1000,
-    whiteSpace: 'normal',
-    wordWrap: 'break-word',
-    textAlign: 'left'
-  };
-
-  // Arrow style for improve button tooltip
-  const improveButtonArrowStyle = {
-    content: '""',
-    position: 'absolute',
-    top: '50%',
-    right: '100%',
-    marginTop: '-8px',
-    borderWidth: '8px',
-    borderStyle: 'solid',
-    borderColor: 'transparent #333 transparent transparent'
-  };
-
-  const handleClearGptKey = () => {
-    setGptApiKey('');
-    localStorage.removeItem('automationGptApiKey');  // Remove from localStorage
-    setIsGptConnected(false);
-  };
-
-  // ... existing state variables ...
-  const [isSavedScriptsCollapsed, setSavedScriptsCollapsed] = useState(false);
-
-  // Add new handler function
-  const handleLoadScript = async (filename) => {
-    try {
-      const extension = filename.split('.').pop();
-      const frameworkMap = {
-        'sah': 'SAHI Pro',
-        'java': 'Selenium',
-        'feature': 'Cucumber'
-      };
-      
-      // Switch framework if needed
-      if (frameworkMap[extension] !== selectedFramework) {
-        setSelectedFramework(frameworkMap[extension]);
-      }
-      
-      // Fetch script content
-      const response = await fetch(`http://localhost:8000/api/video/load-script/${filename}`);
-      if (!response.ok) throw new Error('Failed to load script');
-      
-      const { script } = await response.json();
-      
-      // Update appropriate script state
-      if (extension === 'sah') setSahiScript(script);
-      else if (extension === 'java') setSeleniumScript(script);
-      else if (extension === 'feature') setCucumberScript(script);
-      
-      setBackendLogs(prev => [...prev, `Successfully loaded script: ${filename}`]);
-    } catch (err) {
-      setBackendLogs(prev => [...prev, `Error loading script: ${err.message}`]);
-    }
-  };
-
-  const handleFileUpload = async (file) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    try {
-      const response = await fetch('http://localhost:8000/api/video/upload-script', {
-        method: 'POST',
-        body: formData
-      });
-      
-      if (!response.ok) throw new Error('Failed to upload file');
-      
-      setBackendLogs(prev => [...prev, `Successfully uploaded: ${file.name}`]);
-      // Refresh saved scripts list
-      fetchSavedScripts();
-    } catch (err) {
-      setBackendLogs(prev => [...prev, `Error uploading ${file.name}: ${err.message}`]);
-    }
-  };
-
+  // VedAI connection handler
   const handleVedaiConnect = async () => {
     if (!vedaiApiKey) {
       setError('Please enter VedAI API Key');
@@ -2224,1025 +1879,32 @@ function AIEnabledAutomation() {
       const data = await response.json();
       
       if (data.valid) {
-        setBackendLogs(prev => [...prev, 'Connection to VedAI is successful']);
+        setIsVedaiConnected(true);
+        setBackendLogs(prev => [...prev, 'Successfully connected to VedAI']);
         setError(null);
       } else {
         throw new Error('Failed to connect to VedAI');
       }
     } catch (err) {
       setError(err.message);
+      setIsVedaiConnected(false);
       setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
     } finally {
       setConnecting(false);
     }
   };
 
-  return (
-    <div className="container">
-      <div className="main-panel">
-        <div className="header-with-status">
-          <h1>AI Enabled Automation</h1>
-          <div className="gpt-controls">
-            <input
-              type="password"
-              placeholder="Enter ChatGPT API Key"
-              value={gptApiKey}
-              onChange={handleGptApiKeyChange}
-              className="api-key-input"
-            />
-            <button
-              onClick={handleGptConnect}
-              disabled={connecting}
-              className="connect-btn"
-            >
-              {connecting ? 'Connecting...' : 'Connect'}
-            </button>
-            <span className={`status-indicator ${isGptConnected ? 'on' : 'off'}`}>
-              {isGptConnected ? 'ON' : 'OFF'}
-            </span>
-            
-          </div>
-          
-          </div>
-          <div className="input-group">
-           
-            <div className="input-with-button">
-              <input
-                type="password"
-                id="vedaiApiKey"
-                value={vedaiApiKey}
-                onChange={(e) => setVedaiApiKey(e.target.value)}
-                placeholder="Enter your VedAI API Key"
-              />
-              <button 
-                className="connect-btn"
-                onClick={handleVedaiConnect}
-                disabled={connecting}
-              >
-                {connecting ? 'Connecting...' : 'Connect to Ved AI'}
-              </button>
-              <button 
-                className="clear-btn"
-                onClick={() => {
-                  setVedaiApiKey('');
-                  setBackendLogs(prev => [...prev, 'Cleared VedAI API Key']);
-                }}
-                disabled={connecting}
-              >
-                Clear
-              </button>
-            </div>
-        </div>
-
-        {error && <div className="error">{error}</div>}
-        
-        <div className="automation-controls">
-          <div className="framework-selection">
-            <select
-              className="framework-dropdown"
-              value={selectedFramework}
-              onChange={handleFrameworkChange}
-            >
-              <option value="Selenium">Selenium</option>
-              <option value="SAHI Pro">SAHI Pro</option>
-              <option value="Cucumber">Cucumber</option>
-            </select>
-          </div>
-
-          <div className="user-story-input">
-            <textarea
-              className="us-textarea"
-              placeholder="Enter test case here..."
-              value={testCase}
-              onChange={(e) => setTestCase(e.target.value)}
-            />
-            <button
-              className="generate-btn"
-              onClick={handleGenerateScript}
-              disabled={generating || !isGptConnected}
-            >
-              {generating ? 'Generating...' : 'Generate Script'}
-            </button>
-          </div>
-
-          <div className="script-outputs">
-            <div className="script-section">
-              <h3>
-                {selectedFramework === 'SAHI Pro' ? 'SAHI Script Output' :
-                 selectedFramework === 'Cucumber' ? 'Cucumber Output' :
-                 'Selenium Test Script'}
-              </h3>
-              <textarea 
-                className="script-output"
-                value={
-                  selectedFramework === 'SAHI Pro' ? (sahiScript || 'Generated SAHI script will appear here') :
-                  selectedFramework === 'Cucumber' ? (cucumberScript || 'Generated Cucumber script will appear here') :
-                  (getCurrentScript() || 'Generated Selenium script will appear here')
-                }
-                onChange={(e) => {
-                  const newValue = e.target.value;
-                  if (selectedFramework === 'SAHI Pro') {
-                    setSahiScript(newValue);
-                  } else if (selectedFramework === 'Cucumber') {
-                    setCucumberScript(newValue);
-                  } else {
-                    setSeleniumScript(newValue);
-                  }
-                }}
-                spellCheck="false"
-              />
-              <div className="button-group">
-                <button 
-                  className="save-script-btn" 
-                  onClick={handleSaveScript}
-                  disabled={saving || !getCurrentScript()}
-                >
-                  {saving ? 'Saving...' : 'Save Script'}
-                </button>
-                <button 
-                  style={summarizeButtonStyle}
-                  onMouseOver={(e) => {
-                    e.target.style.transform = 'translateY(-2px)';
-                    e.target.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
-                  }}
-                  onMouseOut={(e) => {
-                    e.target.style.transform = 'translateY(0)';
-                    e.target.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-                  }}
-                >
-                  Summarize
-                </button>
-                <button 
-                  style={validateButtonStyle}
-                  onMouseOver={(e) => {
-                    e.target.style.backgroundColor = '#45a049';
-                    e.target.style.boxShadow = '0 4px 8px rgba(76, 175, 80, 0.3)';
-                  }}
-                  onMouseOut={(e) => {
-                    e.target.style.backgroundColor = '#4CAF50';
-                    e.target.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
-                  }}
-                >
-                  Validate TC with Summary
-                </button>
-              </div>
-            </div>
-
-            <div className="terminal-section">
-              <div className="terminal-header">
-                <span>Terminal</span>
-                <div className="terminal-buttons">
-                  <div style={tooltipStyle}>
-                    <button
-                      onClick={() => handleImproveScript(
-                        selectedFramework,
-                        terminalInput,
-                        selectedFramework === 'SAHI Pro' ? sahiScript :
-                        selectedFramework === 'Cucumber' ? cucumberScript :
-                        seleniumScript
-                      )}
-                      disabled={
-                        selectedFramework === 'SAHI Pro' ? isImprovingSahi || !sahiScript :
-                        selectedFramework === 'Cucumber' ? isImprovingCucumber || !cucumberScript :
-                        isImprovingSelenium || !seleniumScript
-                      }
-                      onMouseEnter={(e) => {
-                        e.currentTarget.nextElementSibling.style.visibility = 'visible';
-                        e.currentTarget.nextElementSibling.style.opacity = '1';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.nextElementSibling.style.visibility = 'hidden';
-                        e.currentTarget.nextElementSibling.style.opacity = '0';
-                      }}
-                    >
-                      {(selectedFramework === 'SAHI Pro' && isImprovingSahi) ||
-                       (selectedFramework === 'Cucumber' && isImprovingCucumber) ||
-                       (selectedFramework === 'Selenium' && isImprovingSelenium)
-                        ? 'Improving...' : 'Improve'}
-                    </button>
-                    <div style={improveButtonTooltipStyle}>
-                      Enter Prompts to iterate the results which are present in the Generated Test Cases output widget above
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleRevertScript(
-                      selectedFramework
-                    )}
-                    disabled={
-                      selectedFramework === 'SAHI Pro' ? !previousSahiScript :
-                      selectedFramework === 'Cucumber' ? !previousCucumberScript :
-                      !previousSeleniumScript
-                    }
-                  >
-                    Revert
-                  </button>
-                </div>
-              </div>
-              <textarea
-                className="terminal-input"
-                value={terminalInput}
-                onChange={(e) => setTerminalInput(e.target.value)}
-                placeholder="Enter improvement prompt here..."
-              />
-            </div>
-          </div>
-
-          <div className="saved-scripts-section">
-            <div className="section-header" onClick={() => setSavedScriptsCollapsed(!isSavedScriptsCollapsed)}>
-              <h3>Saved Scripts</h3>
-              <span className={`collapse-arrow ${isSavedScriptsCollapsed ? 'collapsed' : ''}`}>▼</span>
-            </div>
-            <div className={`section-content ${isSavedScriptsCollapsed ? 'collapsed' : ''}`}>
-              <DropZone 
-                onUpload={handleFileUpload}
-                setBackendLogs={setBackendLogs}
-              />
-              <div className="saved-scripts-list">
-                {savedScripts.length > 0 ? (
-                  <table className="saved-scripts-table">
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Date</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {savedScripts.map((script, index) => (
-                        <tr key={index} className="saved-script-row">
-                          <td>
-                            <button
-                              className="script-link"
-                              onClick={() => handleDownloadScript(script.name)}
-                            >
-                              {script.name}
-                            </button>
-                          </td>
-                          <td className="script-date">{script.created}</td>
-                          <td>
-                            <button className="download-btn" onClick={() => handleDownloadScript(script.name)}>
-                              Download
-                            </button>
-                            <button 
-                              className="load-script-btn" 
-                              onClick={() => handleLoadScript(script.name)}
-                              style={{
-                                backgroundColor: '#3498db',
-                                marginLeft: '8px'
-                              }}
-                            >
-                              Load Script
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <div className="no-scripts">No saved scripts</div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  // ... rest of the existing code ...
 }
 
 function TestCaseValidator() {
-  const [jiraApiKey, setJiraApiKey] = useState(() => localStorage.getItem('validatorJiraApiKey') || '');
-  const [gptApiKey, setGptApiKey] = useState(() => localStorage.getItem('validatorGptApiKey') || '');
-  const [isJiraConnected, setIsJiraConnected] = useState(false);
-  const [isGptConnected, setIsGptConnected] = useState(false);
-  const [connecting, setConnecting] = useState(false);
-  const [error, setError] = useState(null);
-  const [backendLogs, setBackendLogs] = useState([]);
-  const [testCase, setTestCase] = useState('');
-  const [checklist, setChecklist] = useState({
-    scenarios: { present: false, count: 0 },
-    browserConfig: { present: false, count: 0 },
-    notes: { present: false },
-    regressionScenarios: { present: false }
-  });
-  const [aiAnalysis, setAiAnalysis] = useState('');
-  const [generating, setGenerating] = useState(false);
-  const [jiraLink, setJiraLink] = useState('');
-  const [isValidating, setIsValidating] = useState(false);
-  const [hoveredStats, setHoveredStats] = useState(null);
-  const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
-  const [validationReport, setValidationReport] = useState(null);
-
-  // Add tooltip styles
-  const tooltipStyle = {
-    position: 'relative',
-    display: 'inline-block'
-  };
-  
-  const tooltipTextStyle = {
-    visibility: 'hidden',
-    width: '300px',
-    backgroundColor: '#333',
-    color: '#fff',
-    textAlign: 'left',
-    borderRadius: '6px',
-    padding: '12px 16px',
-    position: 'absolute',
-    zIndex: 1,
-    bottom: '150%',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    opacity: 0,
-    transition: 'opacity 0.3s',
-    fontSize: '14px',
-    lineHeight: '1.6',
-    whiteSpace: 'normal',
-    wordWrap: 'break-word'
-  };
-
-  const handleJiraConnect = async () => {
-    if (!jiraApiKey) {
-      setError('Please enter JIRA API Key');
-      setBackendLogs(prev => [...prev, 'Error: JIRA API Key is required']);
-      return;
-    }
-    
-    setConnecting(true);
-    setError(null);
-    
-    try {
-      setBackendLogs(prev => [...prev, 'Attempting to connect to JIRA...']);
-      console.log('Attempting JIRA connection...'); // Add logging
-      const response = await fetch('http://localhost:8000/api/video/verify-jira', {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ api_key: jiraApiKey })
-      });
-      
-      console.log('JIRA response status:', response.status); // Add logging
-      if (!response.ok) {
-        throw new Error('Failed to verify JIRA connection');
-      }
-      
-      const data = await response.json();
-      
-      if (data.valid) {
-        setIsJiraConnected(true);
-        localStorage.setItem('validatorJiraApiKey', jiraApiKey);
-        setError(null);
-        setBackendLogs(prev => [...prev, 'Successfully connected to JIRA']);
-      } else {
-        throw new Error('Failed to connect to JIRA');
-      }
-    } catch (err) {
-      setError(err.message);
-      setIsJiraConnected(false);
-      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
-    } finally {
-      setConnecting(false);
-    }
-  };
-
-  const handleGptConnect = async () => {
-    if (!gptApiKey) {
-      setError('Please enter ChatGPT API Key');
-      return;
-    }
-    
-    setConnecting(true);
-    setError(null);
-    
-    try {
-      const response = await fetch('http://localhost:8000/api/video/verify-chatgpt', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ api_key: gptApiKey })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to verify ChatGPT connection');
-      }
-      
-      const data = await response.json();
-      
-      if (data.valid) {
-        setIsGptConnected(true);
-        localStorage.setItem('validatorGptApiKey', gptApiKey);  // Save to localStorage
-        setError(null);
-        setBackendLogs(prev => [...prev, 'Successfully connected to ChatGPT']);
-      } else {
-        throw new Error('Failed to connect to ChatGPT');
-      }
-    } catch (err) {
-      setError(err.message);
-      setIsGptConnected(false);
-    } finally {
-      setConnecting(false);
-    }
-  };
-
-  const scanTestCase = (testCase) => {
-    const sections = {
-      scenarios: { present: false, count: 0 },
-      browserConfig: { present: false, count: 0 },
-      notes: { present: false },
-      regressionScenarios: { present: false }
-    };
-    
-    // Convert to lowercase and split into lines for easier scanning
-    const lines = testCase.toLowerCase().split('\n');
-    
-    let currentSection = '';
-    
-    lines.forEach(line => {
-      // Check for Scenario sections
-      if (line.includes('scenario:') || line.includes('scenario ')) {
-        sections.scenarios.present = true;
-        sections.scenarios.count++;
-      }
-      
-      // Check for Browser Configuration
-      if (line.includes('browser configuration:') || 
-          line.includes('browser config:') || 
-          line.includes('browser setup:')) {
-        sections.browserConfig.present = true;
-        sections.browserConfig.count++;
-      }
-      
-      // Check for Notes section
-      if (line.includes('notes:')) {
-        sections.notes.present = true;
-      }
-      
-      // Check for Additional Regression Scenarios
-      if (line.includes('additional regression scenarios:') || 
-          line.includes('regression scenarios:') ||
-          line.includes('regression test cases:')) {
-        sections.regressionScenarios.present = true;
-      }
-    });
-    
-    setChecklist(sections);
-  };
-
-  const handleTestCaseChange = (e) => {
-    const newValue = e.target.value;
-    setTestCase(newValue);
-    if (newValue.trim()) {
-      scanTestCase(newValue);
-    } else {
-      // Reset checklist if input is empty
-      setChecklist({
-        scenarios: { present: false, count: 0 },
-        browserConfig: { present: false, count: 0 },
-        notes: { present: false },
-        regressionScenarios: { present: false }
-      });
-    }
-  };
-
-  const handleGenerateReport = async () => {
-    if (!isGptConnected) {
-      setError('Please connect to AI first');
-      return;
-    }
-    
-    if (!testCase.trim()) {
-      setError('Please enter a test case to analyze');
-      return;
-    }
-    
-    setGenerating(true);
-    setError(null);
-    
-    try {
-      const response = await fetch('http://localhost:8000/api/video/analyze-test-case', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          test_case: testCase,
-          api_key: gptApiKey
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to analyze test case');
-      }
-      
-      const data = await response.json();
-      setAiAnalysis(data.analysis);
-      
-    } catch (err) {
-      setError(err.message || 'Failed to generate analysis');
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const handleSaveScript = async () => {
-    if (!testCase || testCase === 'Enter Test Case') {
-      setError('Please enter a test case before saving');
-      return;
-    }
-    
-    try {
-      const response = await fetch('http://localhost:8000/api/video/save-test-case', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          test_case: testCase
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to save test case');
-      }
-      
-      setError(null);
-      // Optional: Show success message
-    } catch (err) {
-      setError(err.message || 'Failed to save test case');
-    }
-  };
-
-  const handleJiraTestCaseValidation = async () => {
-    if (!isJiraConnected || !isGptConnected) {
-      setError('Please connect to both JIRA and AI first');
-      setBackendLogs(prev => [...prev, 'Error: Both JIRA and AI connections required']);
-      return;
-    }
-    
-    if (!jiraLink) {
-      setError('Please enter a JIRA link');
-      return;
-    }
-    
-    setIsValidating(true);
-    setError(null);
-    
-    try {
-      // First fetch the test case from JIRA
-      const jiraResponse = await fetch('http://localhost:8000/api/video/fetch-jira-test-case', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          jira_link: jiraLink,
-          api_key: jiraApiKey
-        })
-      });
-      
-      if (!jiraResponse.ok) {
-        throw new Error('Failed to fetch test case from JIRA');
-      }
-      
-      const jiraData = await jiraResponse.json();
-      const testCaseContent = jiraData.test_case;
-      
-      setBackendLogs(prev => [...prev, 'Successfully fetched test case from JIRA']);
-      
-      // Update test case input and trigger validation
-      setTestCase(testCaseContent);
-      scanTestCase(testCaseContent);
-      
-      // Generate AI analysis
-      const analysisResponse = await fetch('http://localhost:8000/api/video/analyze-test-case', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          test_case: testCaseContent,
-          api_key: gptApiKey
-        })
-      });
-      
-      if (!analysisResponse.ok) {
-        throw new Error('Failed to analyze test case');
-      }
-      
-      const analysisData = await analysisResponse.json();
-      setAiAnalysis(analysisData.analysis);
-      setBackendLogs(prev => [...prev, 'Successfully generated AI analysis']);
-    } catch (err) {
-      setError(err.message);
-      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
-    } finally {
-      setIsValidating(false);
-    }
-  };
-
-  const handleClearGptKey = () => {
-    setGptApiKey('');
-    localStorage.removeItem('validatorGptApiKey');  // Remove from localStorage
-    setIsGptConnected(false);
-  };
-
   return (
     <div className="container">
       <div className="main-panel">
         <h1>Test Case Validator</h1>
-        {error && <div className="error">{error}</div>}
-        
-        <div className="validator-controls">
-          <div className="api-input-group">
-            <input
-              type="password"
-              placeholder="Enter JIRA API Key"
-              className="api-key-input"
-              value={jiraApiKey}
-              onChange={(e) => setJiraApiKey(e.target.value)}
-            />
-            <button 
-              className="connect-btn"
-              onClick={handleJiraConnect}
-              disabled={connecting}
-            >
-              {connecting ? 'Connecting...' : 'Link to JIRA'}
-            </button>
-            <span className={`status-indicator ${isJiraConnected ? 'on' : 'off'}`}>
-              {isJiraConnected ? 'ON' : 'OFF'}
-            </span>
-          </div>
-          
-          <div className="api-input-group">
-            <input
-              type="password"
-              placeholder="Enter ChatGPT API Key"
-              className="api-key-input"
-              value={gptApiKey}
-              onChange={(e) => setGptApiKey(e.target.value)}
-            />
-            <button 
-              className={`connect-btn ${isGptConnected ? 'connected' : ''}`}
-              onClick={handleGptConnect}
-              disabled={connecting}
-            >
-              {connecting ? 'Connecting...' : 'Connect to AI'}
-            </button>
-            <button
-              className="clear-btn"
-              onClick={handleClearGptKey}
-              disabled={connecting}
-            >
-              Clear
-            </button>
-            <span className={`status-indicator ${isGptConnected ? 'on' : 'off'}`}>
-              {isGptConnected ? 'ON' : 'OFF'}
-            </span>
-          </div>
-          <div className="input-group">
-            <input
-              type="text"
-              placeholder="JIRA Link"
-              value={jiraLink}
-              onChange={(e) => setJiraLink(e.target.value)}
-              className="jira-link-input"
-            />
-            <div style={tooltipStyle}>
-              <button
-                className="generate-btn"
-                onClick={handleJiraTestCaseValidation}
-                disabled={isValidating || !isJiraConnected || !isGptConnected}
-                onMouseEnter={(e) => {
-                  e.currentTarget.nextElementSibling.style.visibility = 'visible';
-                  e.currentTarget.nextElementSibling.style.opacity = '1';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.nextElementSibling.style.visibility = 'hidden';
-                  e.currentTarget.nextElementSibling.style.opacity = '0';
-                }}
-              >
-                {isValidating ? 'Validating...' : 'Generate Report from JIRA Link'}
-              </button>
-              <div style={tooltipTextStyle}>
-                Enter the JIRA User Story# (already existing in JIRA) for which you want to generate test case using AI
-              </div>
-            </div>
-          </div>
-          
-          <div className="test-case-section">
-            <textarea
-              placeholder="Enter Test Case"
-              className="test-case-input"
-              value={testCase}
-              onChange={handleTestCaseChange}
-              rows={4}
-            />
-            
-            <div className="validation-results">
-              <div className="report-widgets">
-                <div className="report-widget">
-                  <h3>Checklist Report</h3>
-                  <div className="report-content">
-                    <div className="checklist">
-                      <div className="checklist-item">
-                        <span className={`checkmark ${checklist.scenarios.present ? 'present' : 'missing'}`}>
-                          {checklist.scenarios.present ? '✓' : '✗'}
-                        </span>
-                        <span className="section-name">Scenarios</span>
-                        {checklist.scenarios.count > 0 && (
-                          <span className="count">({checklist.scenarios.count})</span>
-                        )}
-                      </div>
-                      
-                      <div className="checklist-item">
-                        <span className={`checkmark ${checklist.browserConfig.present ? 'present' : 'missing'}`}>
-                          {checklist.browserConfig.present ? '✓' : '✗'}
-                        </span>
-                        <span className="section-name">Browser Configuration</span>
-                        {checklist.browserConfig.count > 0 && (
-                          <span className="count">({checklist.browserConfig.count})</span>
-                        )}
-                      </div>
-                      
-                      <div className="checklist-item">
-                        <span className={`checkmark ${checklist.notes.present ? 'present' : 'missing'}`}>
-                          {checklist.notes.present ? '✓' : '✗'}
-                        </span>
-                        <span className="section-name">Notes</span>
-                      </div>
-                      
-                      <div className="checklist-item">
-                        <span className={`checkmark ${checklist.regressionScenarios.present ? 'present' : 'missing'}`}>
-                          {checklist.regressionScenarios.present ? '✓' : '✗'}
-                        </span>
-                        <span className="section-name">Additional Regression Scenarios</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="report-widget">
-                  <h3>AI Analysis</h3>
-                  <div className="report-content">
-                    {aiAnalysis ? (
-                      <div className="ai-analysis">
-                        {aiAnalysis.split('\n\n').map((section, index) => {
-                          if (section.startsWith('KEY FINDINGS:')) {
-                            return (
-                              <div key={index} className="analysis-section">
-                                <div className="section-title">Key Findings</div>
-                                {section.split('\n').slice(1).map((point, i) => (
-                                  point.trim() && <div key={i} className="key-point">{point.trim()}</div>
-                                ))}
-                              </div>
-                            );
-                          } else if (section.startsWith('RECOMMENDATIONS:')) {
-                            return (
-                              <div key={index} className="analysis-section">
-                                <div className="section-title">Recommendations</div>
-                                {section.split('\n').slice(1).map((point, i) => (
-                                  point.trim() && <div key={i} className="recommendation">{point.trim()}</div>
-                                ))}
-                              </div>
-                            );
-                          } else if (section.startsWith('DETAILED ANALYSIS:')) {
-                            return (
-                              <div key={index} className="analysis-section">
-                                <div className="section-title">Detailed Analysis</div>
-                                <div className="analysis-text">{section.split('\n').slice(1).join('\n')}</div>
-                              </div>
-                            );
-                          }
-                          return null;
-                        })}
-                      </div>
-                    ) : (
-                      <div className="placeholder-text">
-                        AI analysis will appear here after generating the report
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+        <div className="placeholder">
+          Test Case Validator functionality coming soon...
         </div>
-
-        <div className="report-widgets">
-          {/* ... existing report widgets ... */}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function App() {
-  const [selectedFramework, setSelectedFramework] = useState('Cucumber');
-  const [activeTab, setActiveTab] = useState('scribe');
-  const [file, setFile] = useState(null);
-  const [testCases, setTestCases] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [backendLogs, setBackendLogs] = useState([]);
-  const [frames, setFrames] = useState([]);
-  const [isVideo, setIsVideo] = useState(false);
-
-  const formatTestCases = (testCases) => {
-    // If null/undefined, return empty string
-    if (!testCases) return '';
-    
-    // If already a string, return as is
-    if (typeof testCases === 'string') return testCases;
-    
-    // If array, process each test case
-    if (Array.isArray(testCases)) {
-      return testCases.map(tc => {
-        // If test case is a string, return it directly
-        if (typeof tc === 'string') return tc;
-        
-        // If test case has name and steps properties
-        if (tc && tc.name && Array.isArray(tc.steps)) {
-          let output = `Scenario: ${tc.name}\n`;
-          output += 'Steps:\n';
-          tc.steps.forEach((step, index) => {
-            if (step && typeof step === 'object') {
-              output += `${index + 1}. ${step.description || ''}\n`;
-              output += `   Expected: ${step.expected_outcome || ''}\n`;
-            }
-          });
-          return output;
-        }
-        
-        // If test case is an object but doesn't match expected format
-        if (tc && typeof tc === 'object') {
-          try {
-            return JSON.stringify(tc, null, 2);
-          } catch (e) {
-            return String(tc);
-          }
-        }
-        
-        // Fallback: convert to string
-        return String(tc);
-      }).filter(Boolean).join('\n\n');
-    }
-    
-    // If object but not array, try to stringify
-    if (typeof testCases === 'object') {
-      try {
-        return JSON.stringify(testCases, null, 2);
-      } catch (e) {
-        return String(testCases);
-      }
-    }
-    
-    // Final fallback: convert to string
-    return String(testCases);
-  };
-
-  const handleUpload = async () => {
-    if (!file) {
-      setError('Please select a file first');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setBackendLogs([]);
-    setFrames([]);
-    setIsVideo(false);
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const response = await fetch('http://localhost:8000/api/video/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await response.json();
-      
-      console.log("Response data:", data);
-      console.log("Frames received:", data.frames);
-      
-      if (data.logs) {
-        setBackendLogs(data.logs);
-      }
-      setIsVideo(data.is_video || false);
-      if (data.frames) {
-        console.log("Setting frames:", data.frames);
-        setFrames(data.frames);
-      }
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to process file');
-      }
-
-      setTestCases(data.test_cases);
-    } catch (err) {
-      const errorMessage = err.name === 'TypeError' 
-        ? 'Failed to connect to server. Please ensure the backend is running on port 8000.'
-        : err.message;
-      setError(errorMessage);
-      console.error('Connection error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDownloadAll = async () => {
-    try {
-      // Download all frames in sequence
-      for (let i = 0; i < frames.length; i++) {
-        const frame = frames[i];
-        const fileResponse = await fetch(`http://localhost:8000/api/video/frame/${encodeURIComponent(frame)}`);
-        const blob = await fileResponse.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `picture_${i + 1}.jpg`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        
-        // Small delay between downloads to prevent browser throttling
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-    } catch (err) {
-      setError('Failed to download screenshots');
-      console.error('Download error:', err);
-    }
-  };
-
-  return (
-    <div className="app">
-      <div className="tabs">
-        <button 
-          className={`tab-button ${activeTab === 'scribe' ? 'active' : ''}`}
-          onClick={() => setActiveTab('scribe')}
-        >
-          Scribe Test Case Generator
-        </button>
-        <button 
-          className={`tab-button ${activeTab === 'testgen' ? 'active' : ''}`}
-          onClick={() => setActiveTab('testgen')}
-        >
-          Test Case Generation
-        </button>
-        <button 
-          className={`tab-button ${activeTab === 'automation' ? 'active' : ''}`}
-          onClick={() => setActiveTab('automation')}
-        >
-          AI Enabled Automation
-        </button>
-        <button 
-          className={`tab-button ${activeTab === 'validator' ? 'active' : ''}`}
-          onClick={() => setActiveTab('validator')}
-        >
-          Test Case Validator
-        </button>
-        <button 
-          className={`tab-button ${activeTab === 'massreports' ? 'active' : ''}`}
-          onClick={() => setActiveTab('massreports')}
-        >
-          Mass Reports
-        </button>
-      </div>
-
-      <div className="tab-content">
-        {activeTab === 'scribe' ? (
-          <ScriberTestCaseGenerator
-            file={file}
-            setFile={setFile}
-            testCases={testCases}
-            setTestCases={setTestCases}
-            loading={loading}
-            error={error}
-            backendLogs={backendLogs}
-            frames={frames}
-            isVideo={isVideo}
-            handleUpload={handleUpload}
-            handleDownloadAll={handleDownloadAll}
-            formatTestCases={formatTestCases}
-            setError={setError}
-            setBackendLogs={setBackendLogs}
-            setLoading={setLoading}
-            setFrames={setFrames}
-            setIsVideo={setIsVideo}
-          />
-        ) : activeTab === 'testgen' ? (
-          <TestCaseGeneration />
-        ) : activeTab === 'automation' ? (
-          <AIEnabledAutomation />
-        ) : activeTab === 'validator' ? (
-          <TestCaseValidator />
-        ) : (
-          <MassReports />
-        )}
       </div>
     </div>
   );
@@ -3262,6 +1924,7 @@ function MassReports() {
   const [hoveredStats, setHoveredStats] = useState(null);
   const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
   const [backfillStatus, setBackfillStatus] = useState([]);
+  const [showPushModal, setShowPushModal] = useState(false);
   
   const handleJiraConnect = async () => {
     if (!jiraApiKey) {
@@ -3650,6 +2313,216 @@ function MassReports() {
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [selectedFramework, setSelectedFramework] = useState('Cucumber');
+  const [activeTab, setActiveTab] = useState('scribe');
+  const [file, setFile] = useState(null);
+  const [testCases, setTestCases] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [backendLogs, setBackendLogs] = useState([]);
+  const [frames, setFrames] = useState([]);
+  const [isVideo, setIsVideo] = useState(false);
+
+  const formatTestCases = (testCases) => {
+    // If null/undefined, return empty string
+    if (!testCases) return '';
+    
+    // If already a string, return as is
+    if (typeof testCases === 'string') return testCases;
+    
+    // If array, process each test case
+    if (Array.isArray(testCases)) {
+      return testCases.map(tc => {
+        // If test case is a string, return it directly
+        if (typeof tc === 'string') return tc;
+        
+        // If test case has name and steps properties
+        if (tc && tc.name && Array.isArray(tc.steps)) {
+          let output = `Scenario: ${tc.name}\n`;
+          output += 'Steps:\n';
+          tc.steps.forEach((step, index) => {
+            if (step && typeof step === 'object') {
+              output += `${index + 1}. ${step.description || ''}\n`;
+              output += `   Expected: ${step.expected_outcome || ''}\n`;
+            }
+          });
+          return output;
+        }
+        
+        // If test case is an object but doesn't match expected format
+        if (tc && typeof tc === 'object') {
+          try {
+            return JSON.stringify(tc, null, 2);
+          } catch (e) {
+            return String(tc);
+          }
+        }
+        
+        // Fallback: convert to string
+        return String(tc);
+      }).filter(Boolean).join('\n\n');
+    }
+    
+    // If object but not array, try to stringify
+    if (typeof testCases === 'object') {
+      try {
+        return JSON.stringify(testCases, null, 2);
+      } catch (e) {
+        return String(testCases);
+      }
+    }
+    
+    // Final fallback: convert to string
+    return String(testCases);
+  };
+
+  const handleUpload = async () => {
+    if (!file) {
+      setError('Please select a file first');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setBackendLogs([]);
+    setFrames([]);
+    setIsVideo(false);
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('http://localhost:8000/api/video/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+      
+      console.log("Response data:", data);
+      console.log("Frames received:", data.frames);
+      
+      if (data.logs) {
+        setBackendLogs(data.logs);
+      }
+      setIsVideo(data.is_video || false);
+      if (data.frames) {
+        console.log("Setting frames:", data.frames);
+        setFrames(data.frames);
+      }
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to process file');
+      }
+
+      setTestCases(data.test_cases);
+    } catch (err) {
+      const errorMessage = err.name === 'TypeError' 
+        ? 'Failed to connect to server. Please ensure the backend is running on port 8000.'
+        : err.message;
+      setError(errorMessage);
+      console.error('Connection error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadAll = async () => {
+    try {
+      // Download all frames in sequence
+      for (let i = 0; i < frames.length; i++) {
+        const frame = frames[i];
+        const fileResponse = await fetch(`http://localhost:8000/api/video/frame/${encodeURIComponent(frame)}`);
+        const blob = await fileResponse.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `picture_${i + 1}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        // Small delay between downloads to prevent browser throttling
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    } catch (err) {
+      setError('Failed to download screenshots');
+      console.error('Download error:', err);
+    }
+  };
+
+  return (
+    <div className="app">
+      <div className="tabs">
+        <button 
+          className={`tab-button ${activeTab === 'scribe' ? 'active' : ''}`}
+          onClick={() => setActiveTab('scribe')}
+        >
+          Scribe Test Case Generator
+        </button>
+        <button 
+          className={`tab-button ${activeTab === 'testgen' ? 'active' : ''}`}
+          onClick={() => setActiveTab('testgen')}
+        >
+          Test Case Generation
+        </button>
+        <button 
+          className={`tab-button ${activeTab === 'automation' ? 'active' : ''}`}
+          onClick={() => setActiveTab('automation')}
+        >
+          AI Enabled Automation
+        </button>
+        <button 
+          className={`tab-button ${activeTab === 'validator' ? 'active' : ''}`}
+          onClick={() => setActiveTab('validator')}
+        >
+          Test Case Validator
+        </button>
+        <button 
+          className={`tab-button ${activeTab === 'massreports' ? 'active' : ''}`}
+          onClick={() => setActiveTab('massreports')}
+        >
+          Mass Reports
+        </button>
+      </div>
+
+      <div className="tab-content">
+        {activeTab === 'scribe' ? (
+          <ScriberTestCaseGenerator
+            file={file}
+            setFile={setFile}
+            testCases={testCases}
+            setTestCases={setTestCases}
+            loading={loading}
+            error={error}
+            backendLogs={backendLogs}
+            frames={frames}
+            isVideo={isVideo}
+            handleUpload={handleUpload}
+            handleDownloadAll={handleDownloadAll}
+            formatTestCases={formatTestCases}
+            setError={setError}
+            setBackendLogs={setBackendLogs}
+            setLoading={setLoading}
+            setFrames={setFrames}
+            setIsVideo={setIsVideo}
+          />
+        ) : activeTab === 'testgen' ? (
+          <TestCaseGeneration />
+        ) : activeTab === 'automation' ? (
+          <AIEnabledAutomation />
+        ) : activeTab === 'validator' ? (
+          <TestCaseValidator />
+        ) : (
+          <MassReports />
+        )}
       </div>
     </div>
   );
