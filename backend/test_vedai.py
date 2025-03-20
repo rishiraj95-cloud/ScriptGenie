@@ -3,7 +3,7 @@ import json
 
 def test_vedai_connection():
     api_key = "sk-81391c2a10664379a297b418921f3f79"  # Keep for future use
-    base_url = "http://personai.technia.cloud:8080/ollama"
+    base_url = "http://vedai.technia.cloud:8080/ollama"
     
     headers = {
         "Content-Type": "application/json",

@@ -4,7 +4,7 @@ import json
 class VedAIHelper:
     def __init__(self, api_key):
         self.api_key = api_key  # Keep for future use
-        self.base_url = "http://personai.technia.cloud:8080/ollama"
+        self.base_url = "http://vedai.technia.cloud:8080/ollama"
         self.headers = {
             "Content-Type": "application/json",
             "Accept": "application/json"
