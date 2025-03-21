@@ -1731,7 +1731,8 @@ function AIEnabledAutomation() {
   };
 
   // Script states
-  const [vedaiApiKey, setVedaiApiKey] = useState(''); // Added for VedAI
+  const [vedaiApiKey, setVedaiApiKey] = useState(() => localStorage.getItem('automationVedaiApiKey') || '');
+  const [isVedaiConnected, setIsVedaiConnected] = useState(false);
   const [seleniumScript, setSeleniumScript] = useState('');
   const [sahiScript, setSahiScript] = useState('');
   const [cucumberScript, setCucumberScript] = useState('');
@@ -1771,8 +1772,8 @@ function AIEnabledAutomation() {
 
   // Handle script generation
   const handleGenerateScript = async () => {
-    if (!isGptConnected) {
-      setError('Please connect to AI first');
+    if (!isGptConnected && !isVedaiConnected) {
+      setError('Please connect to either ChatGPT or VedAI first');
       return;
     }
     
@@ -1785,17 +1786,36 @@ function AIEnabledAutomation() {
     setError(null);
     
     try {
-      const response = await fetch('http://localhost:8000/api/video/generate-automation-script', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          test_case: testCase,
-          framework: selectedFramework,
-          api_key: gptApiKey
-        })
-      });
+      let response;
+      
+      if (isVedaiConnected) {
+        // Try VedAI first if connected
+        response = await fetch('http://localhost:8000/api/automation/generate-script-vedai', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-API-KEY': vedaiApiKey
+          },
+          body: JSON.stringify({
+            test_case: testCase,
+            framework: selectedFramework
+          })
+        });
+      } else if (isGptConnected) {
+        // Fall back to ChatGPT if VedAI is not connected
+        response = await fetch('http://localhost:8000/api/video/generate-automation-script', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            test_case: testCase,
+            framework: selectedFramework,
+            api_key: gptApiKey
+          })
+        });
+      }
       
       if (!response.ok) {
         throw new Error('Failed to generate script');
@@ -1812,7 +1832,7 @@ function AIEnabledAutomation() {
         setSeleniumScript(data.script);
       }
       
-      setBackendLogs(prev => [...prev, 'Successfully generated automation script']);
+      setBackendLogs(prev => [...prev, `Successfully generated automation script using ${isVedaiConnected ? 'VedAI' : 'ChatGPT'}`]);
     } catch (err) {
       setError(err.message);
       setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
@@ -2200,7 +2220,6 @@ function AIEnabledAutomation() {
   const handleVedaiConnect = async () => {
     if (!vedaiApiKey) {
       setError('Please enter VedAI API Key');
-      setBackendLogs(prev => [...prev, 'Error: VedAI API Key is required']);
       return;
     }
     
@@ -2208,13 +2227,13 @@ function AIEnabledAutomation() {
     setError(null);
     
     try {
-      setBackendLogs(prev => [...prev, 'Attempting to connect to VedAI...']);
-      const response = await fetch('http://localhost:8000/api/automation/vedai/verify', {
-        method: 'POST',
+      const response = await fetch('http://localhost:8000/api/automation/verify-vedai', {
+        method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ api_key: vedaiApiKey })
+          'Accept': 'application/json',
+          'X-API-KEY': vedaiApiKey
+        }
       });
       
       if (!response.ok) {
@@ -2223,18 +2242,88 @@ function AIEnabledAutomation() {
       
       const data = await response.json();
       
-      if (data.valid) {
-        setBackendLogs(prev => [...prev, 'Connection to VedAI is successful']);
+      if (data.status) {
+        setIsVedaiConnected(true);
+        localStorage.setItem('automationVedaiApiKey', vedaiApiKey);
         setError(null);
       } else {
         throw new Error('Failed to connect to VedAI');
       }
     } catch (err) {
       setError(err.message);
-      setBackendLogs(prev => [...prev, `Error: ${err.message}`]);
+      setIsVedaiConnected(false);
     } finally {
       setConnecting(false);
     }
+  };
+
+  const handleVedaiApiKeyChange = (e) => {
+    const newValue = e.target.value;
+    setVedaiApiKey(newValue);
+    localStorage.setItem('automationVedaiApiKey', newValue);
+  };
+
+  const aiControlsStyle = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+    marginBottom: '1rem'
+  };
+
+  const connectionSectionStyle = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+    padding: '1rem',
+    backgroundColor: '#f5f5f5',
+    borderRadius: '8px'
+  };
+
+  const inputWithButtonStyle = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem'
+  };
+
+  const apiKeyInputStyle = {
+    flex: 1,
+    padding: '0.5rem',
+    borderRadius: '4px',
+    border: '1px solid #ccc'
+  };
+
+  const connectBtnStyle = {
+    padding: '0.5rem 1rem',
+    borderRadius: '4px',
+    border: 'none',
+    backgroundColor: '#4CAF50',
+    color: 'white',
+    cursor: 'pointer',
+    transition: 'background-color 0.3s'
+  };
+
+  const connectedBtnStyle = {
+    ...connectBtnStyle,
+    backgroundColor: '#45a049'
+  };
+
+  const statusIndicatorStyle = {
+    padding: '0.25rem 0.5rem',
+    borderRadius: '4px',
+    fontSize: '0.8rem',
+    fontWeight: 'bold'
+  };
+
+  const statusOnStyle = {
+    ...statusIndicatorStyle,
+    backgroundColor: '#4CAF50',
+    color: 'white'
+  };
+
+  const statusOffStyle = {
+    ...statusIndicatorStyle,
+    backgroundColor: '#f44336',
+    color: 'white'
   };
 
   return (
@@ -2242,56 +2331,53 @@ function AIEnabledAutomation() {
       <div className="main-panel">
         <div className="header-with-status">
           <h1>AI Enabled Automation</h1>
-          <div className="gpt-controls">
-            <input
-              type="password"
-              placeholder="Enter ChatGPT API Key"
-              value={gptApiKey}
-              onChange={handleGptApiKeyChange}
-              className="api-key-input"
-            />
-            <button
-              onClick={handleGptConnect}
-              disabled={connecting}
-              className="connect-btn"
-            >
-              {connecting ? 'Connecting...' : 'Connect'}
-            </button>
-            <span className={`status-indicator ${isGptConnected ? 'on' : 'off'}`}>
-              {isGptConnected ? 'ON' : 'OFF'}
-            </span>
-            
-          </div>
-          
-          </div>
-          <div className="input-group">
-           
-            <div className="input-with-button">
-              <input
-                type="password"
-                id="vedaiApiKey"
-                value={vedaiApiKey}
-                onChange={(e) => setVedaiApiKey(e.target.value)}
-                placeholder="Enter your VedAI API Key"
-              />
-              <button 
-                className="connect-btn"
-                onClick={handleVedaiConnect}
-                disabled={connecting}
-              >
-                {connecting ? 'Connecting...' : 'Connect to Ved AI'}
-              </button>
-              <button 
-                className="clear-btn"
-                onClick={() => {
-                  setVedaiApiKey('');
-                  setBackendLogs(prev => [...prev, 'Cleared VedAI API Key']);
-                }}
-                disabled={connecting}
-              >
-                Clear
-              </button>
+          <div style={aiControlsStyle}>
+            <div style={connectionSectionStyle}>
+              <h3>ChatGPT</h3>
+              <div style={inputWithButtonStyle}>
+                <input
+                  type="password"
+                  placeholder="Enter ChatGPT API Key"
+                  value={gptApiKey}
+                  onChange={handleGptApiKeyChange}
+                  style={apiKeyInputStyle}
+                />
+                <button
+                  onClick={handleGptConnect}
+                  disabled={connecting}
+                  style={isGptConnected ? connectedBtnStyle : connectBtnStyle}
+                >
+                  {connecting ? 'Connecting...' : 'Connect'}
+                </button>
+                <span style={isGptConnected ? statusOnStyle : statusOffStyle}>
+                  {isGptConnected ? 'ON' : 'OFF'}
+                </span>
+              </div>
             </div>
+
+            <div style={connectionSectionStyle}>
+              <h3>VedAI</h3>
+              <div style={inputWithButtonStyle}>
+                <input
+                  type="password"
+                  placeholder="Enter VedAI API Key"
+                  value={vedaiApiKey}
+                  onChange={handleVedaiApiKeyChange}
+                  style={apiKeyInputStyle}
+                />
+                <button
+                  onClick={handleVedaiConnect}
+                  disabled={connecting}
+                  style={isVedaiConnected ? connectedBtnStyle : connectBtnStyle}
+                >
+                  {connecting ? 'Connecting...' : 'Connect'}
+                </button>
+                <span style={isVedaiConnected ? statusOnStyle : statusOffStyle}>
+                  {isVedaiConnected ? 'ON' : 'OFF'}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {error && <div className="error">{error}</div>}
@@ -2319,7 +2405,7 @@ function AIEnabledAutomation() {
             <button
               className="generate-btn"
               onClick={handleGenerateScript}
-              disabled={generating || !isGptConnected}
+              disabled={generating || (!isGptConnected && !isVedaiConnected)}
             >
               {generating ? 'Generating...' : 'Generate Script'}
             </button>

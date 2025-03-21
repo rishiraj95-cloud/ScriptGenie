@@ -1,34 +1,72 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from fastapi.responses import JSONResponse
 from app.utils.vedai_helper import VedAIHelper
+from typing import Optional
+import logging
 
-router = APIRouter(prefix="/api/automation/vedai", tags=["automation-vedai"])
+# Configure logging
+logger = logging.getLogger(__name__)
 
-@router.post("/verify")
-async def verify_vedai(request: dict):
+router = APIRouter(prefix="/api/automation", tags=["automation"])
+
+@router.get("/verify-vedai")
+async def verify_vedai(x_api_key: Optional[str] = Header(None)):
     """Verify connection to VedAI"""
     try:
-        api_key = request.get('api_key')  # Keep for future use
-        if not api_key:
+        if not x_api_key:
             raise HTTPException(status_code=400, detail="API key is required")
         
-        helper = VedAIHelper(api_key)
-        print(f"Attempting VedAI connection...")
+        helper = VedAIHelper(x_api_key)
+        logger.info(f"Attempting VedAI connection...")
         is_valid = helper.verify_connection()
-        print(f"VedAI connection result: {is_valid}")
+        logger.info(f"VedAI connection result: {is_valid}")
         
-        # Return in the existing format but based on the status field from VedAI
         return JSONResponse(
             status_code=200,
-            content={"valid": is_valid}
+            content={"status": is_valid}
         )
         
     except Exception as e:
-        print(f"VedAI verification error: {str(e)}")
+        logger.error(f"VedAI verification error: {str(e)}")
         return JSONResponse(
             status_code=200,  # Keep 200 to handle in frontend
             content={
-                "valid": False,
+                "status": False,
+                "error": str(e)
+            }
+        )
+
+@router.post("/generate-script-vedai")
+async def generate_script_vedai(request: dict, x_api_key: Optional[str] = Header(None)):
+    """Generate automation script using VedAI"""
+    try:
+        if not x_api_key:
+            raise HTTPException(status_code=400, detail="API key is required")
+            
+        test_case = request.get('test_case')
+        framework = request.get('framework')
+        
+        if not all([test_case, framework]):
+            raise HTTPException(status_code=400, detail="Test case and framework are required")
+        
+        logger.info(f"Generating {framework} script with VedAI")
+        helper = VedAIHelper(x_api_key)
+        
+        # Generate the script using VedAI
+        script = helper.generate_script(test_case, framework)
+        
+        logger.info("Script generation successful")
+        return JSONResponse(
+            status_code=200,
+            content={"script": script}
+        )
+        
+    except Exception as e:
+        logger.error(f"VedAI script generation error: {str(e)}")
+        return JSONResponse(
+            status_code=200,  # Keep 200 to handle in frontend
+            content={
+                "script": "",
                 "error": str(e)
             }
         ) 
