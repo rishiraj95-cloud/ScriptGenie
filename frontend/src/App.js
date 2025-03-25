@@ -32,6 +32,7 @@ function ScriberTestCaseGenerator({
   const [isGptConnected, setIsGptConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [isGptEnabled, setIsGptEnabled] = useState(false);
+  const [isVedaiConnected, setIsVedaiConnected] = useState(false);
   // Add tooltip style
   const tooltipStyle = {
     position: 'relative',
@@ -280,6 +281,52 @@ function ScriberTestCaseGenerator({
     }
   };
 
+  // Handle VedAI connection
+  const handleVedaiConnect = async () => {
+    if (!vedaiApiKey) {
+      setError('Please enter VedAI API Key');
+      setBackendLogs(prev => [...prev, 'Error: VedAI API Key is required']);
+      return;
+    }
+    
+    setConnecting(true);
+    setError(null);
+    
+    try {
+      setBackendLogs(prev => [...prev, 'Attempting to connect to VedAI...']);
+      const response = await fetch('http://localhost:8000/api/automation/verify-vedai', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-API-KEY': vedaiApiKey
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to connect to VedAI');
+      }
+      
+      localStorage.setItem('scriberVedaiApiKey', vedaiApiKey);
+      setIsVedaiConnected(true);
+      setBackendLogs(prev => [...prev, 'Successfully connected to VedAI']);
+    } catch (error) {
+      setError(error.message);
+      setIsVedaiConnected(false);
+      setBackendLogs(prev => [...prev, `Error: ${error.message}`]);
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleVedaiClear = () => {
+    setVedaiApiKey('');
+    setIsVedaiConnected(false);
+    localStorage.removeItem('scriberVedaiApiKey');
+    setError(null);
+    setBackendLogs(prev => [...prev, 'Cleared VedAI API Key']);
+  };
+
   return (
     <div className="container">
       <div className="main-panel">
@@ -358,15 +405,22 @@ function ScriberTestCaseGenerator({
               className="api-key-input"
             />
             <button
-              className="connect-btn"
+              className={`connect-btn ${isVedaiConnected ? 'connected' : ''}`}
+              onClick={handleVedaiConnect}
+              disabled={connecting}
             >
-              Connect to Ved AI
+              {connecting ? 'Connecting...' : 'Connect'}
             </button>
             <button
               className="clear-btn"
+              onClick={handleVedaiClear}
+              disabled={connecting}
             >
               Clear
             </button>
+            <span className={`status-indicator ${isVedaiConnected ? 'on' : 'off'}`}>
+              {isVedaiConnected ? 'ON' : 'OFF'}
+            </span>
           </div>
         </div>
 
@@ -2220,6 +2274,7 @@ function AIEnabledAutomation() {
   const handleVedaiConnect = async () => {
     if (!vedaiApiKey) {
       setError('Please enter VedAI API Key');
+      setBackendLogs(prev => [...prev, 'Error: VedAI API Key is required']);
       return;
     }
     
@@ -2227,6 +2282,7 @@ function AIEnabledAutomation() {
     setError(null);
     
     try {
+      setBackendLogs(prev => [...prev, 'Attempting to connect to VedAI...']);
       const response = await fetch('http://localhost:8000/api/automation/verify-vedai', {
         method: 'GET',
         headers: {
@@ -2237,21 +2293,16 @@ function AIEnabledAutomation() {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to verify VedAI connection');
-      }
-      
-      const data = await response.json();
-      
-      if (data.status) {
-        setIsVedaiConnected(true);
-        localStorage.setItem('automationVedaiApiKey', vedaiApiKey);
-        setError(null);
-      } else {
         throw new Error('Failed to connect to VedAI');
       }
-    } catch (err) {
-      setError(err.message);
+      
+      localStorage.setItem('scriberVedaiApiKey', vedaiApiKey);
+      setIsVedaiConnected(true);
+      setBackendLogs(prev => [...prev, 'Successfully connected to VedAI']);
+    } catch (error) {
+      setError(error.message);
       setIsVedaiConnected(false);
+      setBackendLogs(prev => [...prev, `Error: ${error.message}`]);
     } finally {
       setConnecting(false);
     }
