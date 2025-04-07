@@ -69,4 +69,40 @@ async def generate_script_vedai(request: dict, x_api_key: Optional[str] = Header
                 "script": "",
                 "error": str(e)
             }
+        )
+
+@router.post("/improve-script-vedai")
+async def improve_script_vedai(request: dict, x_api_key: Optional[str] = Header(None)):
+    """Improve automation script using VedAI"""
+    try:
+        if not x_api_key:
+            raise HTTPException(status_code=400, detail="API key is required")
+            
+        script = request.get('script')
+        improvement_prompt = request.get('improvement_prompt')
+        framework = request.get('framework')
+        
+        if not all([script, improvement_prompt, framework]):
+            raise HTTPException(status_code=400, detail="Script, improvement prompt, and framework are required")
+        
+        logger.info(f"Improving {framework} script with VedAI")
+        helper = VedAIHelper(x_api_key)
+        
+        # Improve the script using VedAI
+        improved_script = helper.improve_script(script, improvement_prompt, framework)
+        
+        logger.info("Script improvement successful")
+        return JSONResponse(
+            status_code=200,
+            content={"improved_script": improved_script}
+        )
+        
+    except Exception as e:
+        logger.error(f"VedAI script improvement error: {str(e)}")
+        return JSONResponse(
+            status_code=200,  # Keep 200 to handle in frontend
+            content={
+                "improved_script": "",
+                "error": str(e)
+            }
         ) 

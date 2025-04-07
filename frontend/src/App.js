@@ -2014,8 +2014,8 @@ function AIEnabledAutomation() {
   }, []);
 
   const handleImproveScript = async (scriptType, input, currentScript) => {
-    if (!isGptConnected) {
-      setError('Please connect to AI first');
+    if (!isGptConnected && !isVedaiConnected) {
+      setError('Please connect to either ChatGPT or VedAI first');
       return;
     }
     
@@ -2047,18 +2047,38 @@ function AIEnabledAutomation() {
     setError(null);
     
     try {
-      const response = await fetch('http://localhost:8000/api/video/improve-script', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          script: currentScript,
-          improvement_prompt: input,
-          framework: selectedFramework,
-          api_key: gptApiKey
-        })
-      });
+      let response;
+      
+      if (isVedaiConnected) {
+        // Try VedAI first if connected
+        response = await fetch('http://localhost:8000/api/automation/improve-script-vedai', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-API-KEY': vedaiApiKey
+          },
+          body: JSON.stringify({
+            script: currentScript,
+            improvement_prompt: input,
+            framework: selectedFramework
+          })
+        });
+      } else if (isGptConnected) {
+        // Fall back to ChatGPT if VedAI is not connected
+        response = await fetch('http://localhost:8000/api/video/improve-script', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            script: currentScript,
+            improvement_prompt: input,
+            framework: selectedFramework,
+            api_key: gptApiKey
+          })
+        });
+      }
       
       if (!response.ok) {
         throw new Error('Failed to improve script');
@@ -2067,7 +2087,7 @@ function AIEnabledAutomation() {
       const data = await response.json();
       setPrevious(currentScript);
       setScript(data.improved_script);
-      setBackendLogs(prev => [...prev, 'Successfully improved script']);
+      setBackendLogs(prev => [...prev, `Successfully improved script using ${isVedaiConnected ? 'VedAI' : 'ChatGPT'}`]);
       setTerminalInput(''); // Clear terminal input after successful improvement
     } catch (err) {
       setError(err.message);
