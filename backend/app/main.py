@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import video, automation_vedai, scribe_vedai
+from app.routers import video, automation_vedai, scribe_vedai, triaging
 
 app = FastAPI(title="Scribe Test Generator")
 
@@ -30,6 +30,7 @@ app.add_middleware(
 app.include_router(video.router)
 app.include_router(automation_vedai.router)
 app.include_router(scribe_vedai.router)
+app.include_router(triaging.router)
 
 if __name__ == "__main__":
     import uvicorn

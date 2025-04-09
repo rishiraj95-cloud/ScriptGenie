@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import DiffView from './components/DiffView';
 import BackfillStatus from './components/BackfillStatus';
 import './App.css';
+import AIEnabledTriaging from './components/AIEnabledTriaging';
 
 function ScriberTestCaseGenerator({
   file,
@@ -3363,6 +3364,12 @@ function App() {
           Test Case Validator
         </button>
         <button 
+          className={`tab-button ${activeTab === 'triaging' ? 'active' : ''}`}
+          onClick={() => setActiveTab('triaging')}
+        >
+          AI Enabled Triaging
+        </button>
+        <button 
           className={`tab-button ${activeTab === 'massreports' ? 'active' : ''}`}
           onClick={() => setActiveTab('massreports')}
         >
@@ -3397,6 +3404,8 @@ function App() {
           <AIEnabledAutomation />
         ) : activeTab === 'validator' ? (
           <TestCaseValidator />
+        ) : activeTab === 'triaging' ? (
+          <AIEnabledTriaging />
         ) : (
           <MassReports />
         )}
