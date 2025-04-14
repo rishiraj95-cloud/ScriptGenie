@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import TriageReport from './TriageReport';
 
 const AIEnabledTriaging = () => {
   // State for API keys and connection status
@@ -335,13 +336,8 @@ const AIEnabledTriaging = () => {
       {analysisResults && (
         <div style={styles.widget}>
           <h3>Triage Report</h3>
-          <div>
-            <input
-              type="text"
-              value={analysisResults}
-              onChange={(e) => setAnalysisResults(e.target.value)}
-              style={{ ...styles.input, width: '100%', marginBottom: '10px' }}
-            />
+          <TriageReport analysisResults={analysisResults} />
+          <div style={{ marginTop: '15px' }}>
             <button onClick={handleSaveAnalysis} style={styles.button}>
               Save Analysis
             </button>
