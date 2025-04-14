@@ -320,3 +320,29 @@ class JiraHelper:
                 print(f"Response status: {e.response.status_code}")
                 print(f"Response body: {e.response.text}")
             raise e 
+
+    def get_issue_details(self, issue_key: str) -> dict:
+        """Get full details of a JIRA issue for triaging"""
+        try:
+            jira = JIRA(
+                basic_auth=(self.email, self.api_key),
+                server=self.server
+            )
+            
+            issue = jira.issue(issue_key)
+            
+            return {
+                "key": issue.key,
+                "title": issue.fields.summary,
+                "description": issue.fields.description or "",
+                "labels": [label for label in issue.fields.labels],
+                "priority": str(issue.fields.priority),
+                "status": str(issue.fields.status),
+                "type": str(issue.fields.issuetype)
+            }
+        except Exception as e:
+            print(f"Error getting issue details: {str(e)}")
+            if hasattr(e, 'response'):
+                print(f"Response status: {e.response.status_code}")
+                print(f"Response body: {e.response.text}")
+            raise e 

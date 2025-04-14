@@ -1,0 +1,44 @@
+.backfill-status {
+  margin: 20px 0;
+  padding: 15px;
+  border-radius: 8px;
+  background-color: #f8f9fa;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.status-list {
+  margin-bottom: 15px;
+}
+
+.status-item {
+  padding: 8px 12px;
+  margin: 5px 0;
+  border-radius: 4px;
+  background-color: white;
+  border-left: 4px solid #007bff;
+  font-size: 14px;
+}
+
+.status-item:hover {
+  background-color: #f0f0f0;
+}
+
+.download-all-btn {
+  background-color: #28a745;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.download-all-btn:hover {
+  background-color: #218838;
+}
+
+.download-all-btn:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+} 

@@ -13,6 +13,11 @@ from app.utils.chatgpt_helper import ChatGPTHelper
 from app.utils.jira_helper import JiraHelper
 import json
 from datetime import datetime
+import logging
+import traceback
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Try to import pdfplumber, but don't crash if it's not available
 try:
@@ -932,10 +937,25 @@ async def backfill_test_case(request: dict):
 async def download_backfill_test_cases():
     """Download all backfill test cases as zip"""
     try:
+        # Check if folder exists
+        if not os.path.exists(TEST_CASES_FOLDER):
+            raise HTTPException(
+                status_code=404, 
+                detail="No test cases folder found. Please generate test cases first."
+            )
+            
+        # Check if folder has files
+        files = [f for f in os.listdir(TEST_CASES_FOLDER) if f.startswith('Test Case')]
+        if not files:
+            raise HTTPException(
+                status_code=404,
+                detail="No test cases found. Please generate test cases first."
+            )
+            
         # Create in-memory zip file
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            for filename in os.listdir(TEST_CASES_FOLDER):
+            for filename in files:
                 file_path = os.path.join(TEST_CASES_FOLDER, filename)
                 zip_file.write(file_path, filename)
         
@@ -950,6 +970,8 @@ async def download_backfill_test_cases():
                 "Content-Disposition": f"attachment; filename=backfill_test_cases.zip"
             }
         )
+    except HTTPException as he:
+        raise he
     except Exception as e:
         print(f"Error creating zip file: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1041,122 +1063,26 @@ async def extract_screenshots(file: UploadFile = File(...), api_key: str = Form(
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        # Create directory for extracted images
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        screenshots_dir_name = f"screenshots_{timestamp}"
-        screenshots_dir = os.path.join(FRAMES_FOLDER, screenshots_dir_name)
-        os.makedirs(screenshots_dir, exist_ok=True)
-        log(f"Created screenshots directory: {os.path.abspath(screenshots_dir)}")
+        # Extract text from PDF
+        text_data = extract_text_from_pdf(file_path)
+        log(f"PDF text extraction result: {len(text_data)} lines")
         
-        # Extract images from PDF
-        log("Extracting embedded images from PDF...")
-        screenshot_files = []
+        if not text_data:
+            raise Exception("No text could be extracted from the PDF")
         
-        if PDFPLUMBER_AVAILABLE:
-            # Use pdfplumber to extract embedded images
-            log("Using pdfplumber for image extraction")
-            image_count = 0
-            
-            with pdfplumber.open(file_path) as pdf:
-                for page_num, page in enumerate(pdf.pages):
-                    images = page.images
-                    for img_index, img in enumerate(images):
-                        # Get image data
-                        img_data = img["stream"].get_data()
-                        
-                        # Save image
-                        image_count += 1
-                        image_filename = f"image_{image_count}.png"
-                        image_path = os.path.join(screenshots_dir, image_filename)
-                        
-                        with open(image_path, "wb") as img_file:
-                            img_file.write(img_data)
-                        
-                        screenshot_files.append(image_path)
-                        log(f"Extracted image {image_count} from page {page_num+1}")
-            
-            if image_count == 0:
-                log("No embedded images found in the PDF. Extracting pages as images instead.")
-                
-                # If no embedded images, extract pages as images using PIL
-                from pdf2image import convert_from_path
-                try:
-                    # Try using pdf2image if available
-                    images = convert_from_path(file_path, dpi=200)
-                    for i, image in enumerate(images):
-                        image_count += 1
-                        image_filename = f"page_{i+1}.png"
-                        image_path = os.path.join(screenshots_dir, image_filename)
-                        image.save(image_path, "PNG")
-                        screenshot_files.append(image_path)
-                        log(f"Extracted page {i+1} as image")
-                except Exception as e:
-                    log(f"Error using pdf2image: {str(e)}")
-                    log("Falling back to rendering pages as text images")
-                    
-                    # Extract text from PDF using existing function
-                    text_data = extract_text_from_pdf(file_path)
-                    
-                    # Create an image for each page of text
-                    for i, page_text in enumerate(text_data):
-                        # Create a blank image with white background
-                        img = Image.new('RGB', (800, 1000), color='white')
-                        from PIL import ImageDraw, ImageFont
-                        draw = ImageDraw.Draw(img)
-                        
-                        # Use default font
-                        try:
-                            font = ImageFont.truetype("arial.ttf", 14)
-                        except IOError:
-                            font = ImageFont.load_default()
-                        
-                        # Draw text on image
-                        draw.text((20, 20), page_text, fill='black', font=font)
-                        
-                        # Save image
-                        image_count += 1
-                        image_filename = f"page_{i+1}.png"
-                        image_path = os.path.join(screenshots_dir, image_filename)
-                        img.save(image_path)
-                        
-                        screenshot_files.append(image_path)
-                        log(f"Created text image for page {i+1}")
-        else:
-            log("pdfplumber not available. Cannot extract embedded images.")
-            raise HTTPException(
-                status_code=500, 
-                detail="pdfplumber is required for image extraction. Please install it with 'pip install pdfplumber'"
-            )
-        
-        # Create a ZIP file containing all screenshots
-        zip_filename = f"screenshots_{timestamp}.zip"
-        zip_path = os.path.join(FRAMES_FOLDER, zip_filename)
-        
-        with zipfile.ZipFile(zip_path, 'w') as zipf:
-            for file in screenshot_files:
-                zipf.write(file, os.path.basename(file))
-        
-        log(f"Created ZIP file with {len(screenshot_files)} images: {os.path.abspath(zip_path)}")
-        
-        # Create download URL for the ZIP file
-        zip_url = f"/api/video/download-screenshots/{zip_filename}"
-        
-        # Set to None to prevent cleanup in finally block
-        temp_screenshots_dir = screenshots_dir
-        screenshots_dir = None
+        # Process with AI
+        helper = ChatGPTHelper(api_key)
+        test_cases = helper.generate_test_cases("\n".join(text_data))
         
         return JSONResponse(
             status_code=200,
             content={
-                "zip_url": zip_url,
-                "image_count": len(screenshot_files),
+                "test_cases": test_cases,
                 "logs": logs
             }
         )
     except Exception as e:
-        import traceback
-        log(f"Error extracting images: {str(e)}")
-        log(f"Traceback: {traceback.format_exc()}")
+        log(f"Error processing file: {str(e)}")
         return JSONResponse(
             status_code=500,
             content={"error": str(e), "logs": logs}
@@ -1223,4 +1149,91 @@ async def download_screenshots(zip_filename: str):
         print(f"Error downloading screenshots: {str(e)}")
         import traceback
         print(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Error downloading screenshots: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Error downloading screenshots: {str(e)}")
+
+@router.post("/analyze-issue")
+async def analyze_issue(request: dict):
+    """Analyze JIRA issue using AI"""
+    try:
+        print("[Debug] Received analyze-issue request")
+        print("[Debug] Request data:", {k: 'PRESENT' if v else 'MISSING' for k, v in request.items()})
+        
+        jira_key = request.get('jira_key', '').strip()
+        jira_api_key = request.get('api_key')
+        chatgpt_api_key = request.get('chatgpt_api_key', jira_api_key)
+        
+        print(f"[Debug] Extracted JIRA key: {jira_key}")
+        print("[Debug] JIRA API key present:", bool(jira_api_key))
+        print("[Debug] ChatGPT API key present:", bool(chatgpt_api_key))
+        
+        if not all([jira_key, jira_api_key]):
+            raise HTTPException(status_code=400, detail="JIRA key and API key are required")
+        
+        # Get JIRA issue details
+        print(f"[Debug] Getting JIRA details for issue: {jira_key}")
+        jira_helper = JiraHelper(jira_api_key)
+        issue_details = jira_helper.get_story_details(jira_key)
+        
+        print("[Debug] JIRA details retrieved:", bool(issue_details))
+        
+        if not issue_details:
+            raise HTTPException(status_code=404, detail=f"JIRA issue {jira_key} not found")
+        
+        # Prepare AI prompt
+        prompt = f"""
+        Analyze the following JIRA issue and help with triaging by classifying in below categories:
+
+        JIRA Title: {issue_details.get('title')}
+        Description: {issue_details.get('description')}
+        Current Labels: {issue_details.get('labels', [])}
+        Current Priority: {issue_details.get('priority', 'Not Set')}
+
+        Please classify this issue:
+
+        1. Priority Level (choose one):
+        - Blocker: Functionality completely blocked
+        - Critical: Workaround exists
+        - Major: Functionality works but needs improvement
+        - Minor: Minor changes needed
+
+        2. Category (choose one):
+        - Bug: Product defect
+        - Enhancement Request: Feature request
+        - Usage Issue: User needs guidance
+        - Infrastructure Issue: Server/network/access issues
+
+        Base your classification strictly on the issue details provided.
+        """
+        
+        # Get AI analysis
+        print(f"[Debug] Generating analysis using ChatGPT")
+        chatgpt_helper = ChatGPTHelper(chatgpt_api_key)
+        analysis = chatgpt_helper.generate_response([{
+            "role": "system",
+            "content": "You are a helpful assistant analyzing software issues."
+        }, {
+            "role": "user",
+            "content": prompt
+        }])
+        
+        print("[Debug] Analysis generated successfully")
+        
+        # Prepare response data
+        response_data = {
+            "jira_details": issue_details,
+            "ai_analysis": analysis,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        print("[Debug] Sending response")
+        return JSONResponse(
+            status_code=200,
+            content=response_data
+        )
+        
+    except Exception as e:
+        print(f"[Debug] Error analyzing issue: {str(e)}")
+        print("[Debug] Full traceback:")
+        import traceback
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e)) 

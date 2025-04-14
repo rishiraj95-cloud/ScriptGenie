@@ -1,284 +1,245 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
 
-function AIEnabledTriaging() {
-  // API key states
-  const [jiraApiKey, setJiraApiKey] = useState(() => localStorage.getItem('triagingJiraApiKey') || '');
-  const [gptApiKey, setGptApiKey] = useState(() => localStorage.getItem('triagingGptApiKey') || '');
-  const [vedaiApiKey, setVedaiApiKey] = useState(() => localStorage.getItem('triagingVedaiApiKey') || '');
-
-  // Connection states
+const AIEnabledTriaging = () => {
+  // State for API keys and connection status
+  const [jiraApiKey, setJiraApiKey] = useState('');
+  const [vedaiApiKey, setVedaiApiKey] = useState('');
+  const [chatgptApiKey, setChatgptApiKey] = useState('');
   const [isJiraConnected, setIsJiraConnected] = useState(false);
-  const [isGptConnected, setIsGptConnected] = useState(false);
   const [isVedaiConnected, setIsVedaiConnected] = useState(false);
-  const [connecting, setConnecting] = useState(false);
-
-  // Error states
-  const [jiraError, setJiraError] = useState(null);
-  const [gptError, setGptError] = useState(null);
-  const [vedaiError, setVedaiError] = useState(null);
-
-  // Backend logs
-  const [backendLogs, setBackendLogs] = useState([]);
-
-  // Load saved API keys on mount
-  useEffect(() => {
-    const savedJiraKey = localStorage.getItem('triagingJiraApiKey');
-    const savedGptKey = localStorage.getItem('triagingGptApiKey');
-    const savedVedaiKey = localStorage.getItem('triagingVedaiApiKey');
-
-    if (savedJiraKey) setJiraApiKey(savedJiraKey);
-    if (savedGptKey) setGptApiKey(savedGptKey);
-    if (savedVedaiKey) setVedaiApiKey(savedVedaiKey);
-  }, []);
-
-  // JIRA connection handlers
-  const handleJiraConnect = async () => {
-    if (!jiraApiKey) {
-      setJiraError('Please enter JIRA API Key');
-      setBackendLogs(prev => [...prev, 'Error: JIRA API Key is required']);
-      return;
-    }
-
-    setConnecting(true);
-    setJiraError(null);
-
+  const [isChatgptConnected, setIsChatgptConnected] = useState(false);
+  
+  // State for JIRA analysis
+  const [jiraNumber, setJiraNumber] = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [error, setError] = useState('');
+  
+  // State for analysis results
+  const [jiraDetails, setJiraDetails] = useState(null);
+  const [analysisResults, setAnalysisResults] = useState(null);
+  
+  // Connection handlers defined before useEffect
+  const handleJiraConnect = useCallback(async (key = jiraApiKey) => {
     try {
-      setBackendLogs(prev => [...prev, 'Attempting to connect to JIRA...']);
-      const response = await fetch('http://localhost:8000/api/triaging/verify-jira', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ api_key: jiraApiKey })
+      const response = await axios.post('http://localhost:8000/api/triaging/verify-jira', {
+        api_key: key
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to connect to JIRA');
+      setIsJiraConnected(response.data.valid);
+      if (response.data.valid) {
+        localStorage.setItem('triageJiraApiKey', key);
       }
-
-      const data = await response.json();
-      if (data.valid) {
-        localStorage.setItem('triagingJiraApiKey', jiraApiKey);
-        setIsJiraConnected(true);
-        setBackendLogs(prev => [...prev, 'Successfully connected to JIRA']);
-      } else {
-        throw new Error('Invalid JIRA API Key');
-      }
-    } catch (error) {
-      setJiraError(error.message);
+    } catch (err) {
+      setError('Failed to connect to JIRA');
       setIsJiraConnected(false);
-      setBackendLogs(prev => [...prev, `Error: ${error.message}`]);
-    } finally {
-      setConnecting(false);
     }
-  };
-
-  // ChatGPT connection handlers
-  const handleGptConnect = async () => {
-    if (!gptApiKey) {
-      setGptError('Please enter ChatGPT API Key');
-      setBackendLogs(prev => [...prev, 'Error: ChatGPT API Key is required']);
-      return;
-    }
-
-    setConnecting(true);
-    setGptError(null);
-
+  }, [jiraApiKey]);
+  
+  const handleVedaiConnect = useCallback(async (key = vedaiApiKey) => {
     try {
-      setBackendLogs(prev => [...prev, 'Attempting to connect to ChatGPT...']);
-      const response = await fetch('http://localhost:8000/api/triaging/verify-chatgpt', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ api_key: gptApiKey })
+      const response = await axios.get('http://localhost:8000/api/triaging/verify-vedai', {
+        headers: { 'X-API-KEY': key }
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to connect to ChatGPT');
+      setIsVedaiConnected(response.data.status);
+      if (response.data.status) {
+        localStorage.setItem('triageVedaiApiKey', key);
       }
-
-      const data = await response.json();
-      if (data.valid) {
-        localStorage.setItem('triagingGptApiKey', gptApiKey);
-        setIsGptConnected(true);
-        setBackendLogs(prev => [...prev, 'Successfully connected to ChatGPT']);
-      } else {
-        throw new Error('Invalid ChatGPT API Key');
-      }
-    } catch (error) {
-      setGptError(error.message);
-      setIsGptConnected(false);
-      setBackendLogs(prev => [...prev, `Error: ${error.message}`]);
-    } finally {
-      setConnecting(false);
-    }
-  };
-
-  // VedAI connection handlers
-  const handleVedaiConnect = async () => {
-    if (!vedaiApiKey) {
-      setVedaiError('Please enter VedAI API Key');
-      setBackendLogs(prev => [...prev, 'Error: VedAI API Key is required']);
-      return;
-    }
-
-    setConnecting(true);
-    setVedaiError(null);
-
-    try {
-      setBackendLogs(prev => [...prev, 'Attempting to connect to VedAI...']);
-      const response = await fetch('http://localhost:8000/api/triaging/verify-vedai', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-API-KEY': vedaiApiKey
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to connect to VedAI');
-      }
-
-      localStorage.setItem('triagingVedaiApiKey', vedaiApiKey);
-      setIsVedaiConnected(true);
-      setBackendLogs(prev => [...prev, 'Successfully connected to VedAI']);
-    } catch (error) {
-      setVedaiError(error.message);
+    } catch (err) {
+      setError('Failed to connect to VedAI');
       setIsVedaiConnected(false);
-      setBackendLogs(prev => [...prev, `Error: ${error.message}`]);
-    } finally {
-      setConnecting(false);
     }
-  };
-
-  // Clear handlers
-  const handleClearJira = () => {
-    setJiraApiKey('');
-    setIsJiraConnected(false);
-    localStorage.removeItem('triagingJiraApiKey');
-    setJiraError(null);
-    setBackendLogs(prev => [...prev, 'Cleared JIRA API Key']);
-  };
-
-  const handleClearGpt = () => {
-    setGptApiKey('');
-    setIsGptConnected(false);
-    localStorage.removeItem('triagingGptApiKey');
-    setGptError(null);
-    setBackendLogs(prev => [...prev, 'Cleared ChatGPT API Key']);
-  };
-
-  const handleClearVedai = () => {
-    setVedaiApiKey('');
-    setIsVedaiConnected(false);
-    localStorage.removeItem('triagingVedaiApiKey');
-    setVedaiError(null);
-    setBackendLogs(prev => [...prev, 'Cleared VedAI API Key']);
-  };
-
-  // Modern styles
+  }, [vedaiApiKey]);
+  
+  const handleChatgptConnect = useCallback(async (key = chatgptApiKey) => {
+    try {
+      const response = await axios.post('http://localhost:8000/api/triaging/verify-chatgpt', {
+        api_key: key
+      });
+      setIsChatgptConnected(response.data.valid);
+      if (response.data.valid) {
+        localStorage.setItem('triageChatgptApiKey', key);
+      }
+    } catch (err) {
+      setError('Failed to connect to ChatGPT');
+      setIsChatgptConnected(false);
+    }
+  }, [chatgptApiKey]);
+  
+  // Load saved API keys on component mount
+  useEffect(() => {
+    const savedJiraKey = localStorage.getItem('triageJiraApiKey');
+    const savedVedaiKey = localStorage.getItem('triageVedaiApiKey');
+    const savedChatgptKey = localStorage.getItem('triageChatgptApiKey');
+    
+    if (savedJiraKey) {
+      setJiraApiKey(savedJiraKey);
+      handleJiraConnect(savedJiraKey);
+    }
+    if (savedVedaiKey) {
+      setVedaiApiKey(savedVedaiKey);
+      handleVedaiConnect(savedVedaiKey);
+    }
+    if (savedChatgptKey) {
+      setChatgptApiKey(savedChatgptKey);
+      handleChatgptConnect(savedChatgptKey);
+    }
+  }, [handleJiraConnect, handleVedaiConnect, handleChatgptConnect]);
+  
+  // Styles
   const styles = {
     container: {
-      padding: '2rem',
+      padding: '20px',
       maxWidth: '1200px',
-      margin: '0 auto'
-    },
-    header: {
-      marginBottom: '2rem',
-      borderBottom: '2px solid #e9ecef',
-      paddingBottom: '1rem'
-    },
-    title: {
-      fontSize: '2rem',
-      color: '#343a40',
-      margin: '0 0 1rem 0'
+      margin: '0 auto',
     },
     connectionSection: {
-      backgroundColor: '#ffffff',
-      borderRadius: '12px',
-      padding: '2rem',
-      marginBottom: '2rem',
-      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-      transition: 'transform 0.2s ease',
-      '&:hover': {
-        transform: 'translateY(-2px)'
-      }
+      marginBottom: '30px',
+      padding: '20px',
+      border: '1px solid #ddd',
+      borderRadius: '5px',
     },
     inputGroup: {
+      marginBottom: '15px',
       display: 'flex',
-      gap: '1rem',
       alignItems: 'center',
-      marginBottom: '1rem'
+      gap: '10px',
     },
     input: {
+      padding: '8px',
+      borderRadius: '4px',
+      border: '1px solid #ddd',
       flex: 1,
-      padding: '0.75rem 1rem',
-      borderRadius: '8px',
-      border: '2px solid #e9ecef',
-      fontSize: '1rem',
-      transition: 'all 0.2s ease',
-      '&:focus': {
-        borderColor: '#4dabf7',
-        outline: 'none',
-        boxShadow: '0 0 0 3px rgba(77, 171, 247, 0.2)'
-      }
     },
     button: {
-      padding: '0.75rem 1.5rem',
-      borderRadius: '8px',
+      padding: '8px 16px',
+      borderRadius: '4px',
       border: 'none',
-      backgroundColor: '#4dabf7',
+      backgroundColor: '#007bff',
       color: 'white',
-      fontSize: '1rem',
       cursor: 'pointer',
-      transition: 'all 0.2s ease',
-      '&:hover': {
-        backgroundColor: '#339af0'
-      },
-      '&:disabled': {
-        backgroundColor: '#adb5bd',
-        cursor: 'not-allowed'
+    },
+    connectedButton: {
+      backgroundColor: '#28a745',
+    },
+    widget: {
+      marginBottom: '20px',
+      padding: '20px',
+      border: '1px solid #ddd',
+      borderRadius: '5px',
+    },
+    error: {
+      color: 'red',
+      marginTop: '5px',
+    },
+  };
+  
+  // Analysis handlers
+  const handleAnalyze = async () => {
+    setError('');
+    setIsAnalyzing(true);
+    
+    try {
+      // Validate connections
+      if (!isJiraConnected) {
+        throw new Error('Please connect to JIRA first');
       }
-    },
-    clearButton: {
-      padding: '0.75rem 1.5rem',
-      borderRadius: '8px',
-      border: '1px solid #dee2e6',
-      backgroundColor: 'white',
-      color: '#495057',
-      fontSize: '1rem',
-      cursor: 'pointer',
-      transition: 'all 0.2s ease',
-      '&:hover': {
-        backgroundColor: '#f8f9fa'
+      
+      if (!isChatgptConnected) {
+        throw new Error('Please connect to ChatGPT first');
       }
-    },
-    statusIndicator: {
-      padding: '0.5rem 1rem',
-      borderRadius: '999px',
-      fontSize: '0.875rem',
-      fontWeight: '500',
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '0.5rem'
-    },
-    errorMessage: {
-      color: '#e03131',
-      fontSize: '0.875rem',
-      marginTop: '0.5rem'
+      
+      if (!jiraApiKey) {
+        throw new Error('JIRA API key is missing');
+      }
+
+      if (!chatgptApiKey) {
+        throw new Error('ChatGPT API key is missing');
+      }
+
+      // Use JIRA key directly without splitting
+      const jiraKey = jiraNumber.trim();
+      console.log('[Debug] JIRA Key:', jiraKey);
+      console.log('[Debug] JIRA API Key:', jiraApiKey ? 'Present' : 'Missing');
+      console.log('[Debug] ChatGPT API Key:', chatgptApiKey ? 'Present' : 'Missing');
+      
+      if (!jiraKey) {
+        throw new Error('Please enter a JIRA number');
+      }
+
+      // Make the API call
+      console.log('[Debug] Making API call to /api/video/analyze-issue');
+      console.log('[Debug] Request payload:', {
+        jira_key: jiraKey,
+        api_key: 'PRESENT',
+        chatgpt_api_key: 'PRESENT'
+      });
+      
+      const jiraResponse = await axios.post('http://localhost:8000/api/video/analyze-issue', {
+        jira_key: jiraKey,
+        api_key: jiraApiKey,
+        chatgpt_api_key: chatgptApiKey
+      });
+      
+      console.log('[Debug] API Response:', jiraResponse.data);
+      
+      if (!jiraResponse.data.jira_details) {
+        throw new Error('No JIRA details returned from API');
+      }
+      
+      setJiraDetails(jiraResponse.data.jira_details);
+      setAnalysisResults(jiraResponse.data.ai_analysis);
+    } catch (err) {
+      console.error('[Debug] Analysis error:', err);
+      if (err.response) {
+        console.error('[Debug] API error details:', {
+          status: err.response.status,
+          statusText: err.response.statusText,
+          data: err.response.data
+        });
+        setError(err.response?.data?.detail || 'Server error occurred');
+      } else if (err.message) {
+        setError(err.message);
+      } else {
+        setError('Failed to analyze issue');
+      }
+    } finally {
+      setIsAnalyzing(false);
     }
   };
-
+  
+  const handleSaveAnalysis = async () => {
+    if (!analysisResults) return;
+    
+    try {
+      const response = await axios.post('http://localhost:8000/api/triaging/save-analysis', {
+        analysis: {
+          jira_details: jiraDetails,
+          ai_analysis: analysisResults,
+          timestamp: new Date().toISOString()
+        }
+      }, {
+        responseType: 'blob'
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `triage_analysis_${jiraNumber}_${new Date().getTime()}.txt`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      setError('Failed to save analysis');
+    }
+  };
+  
   return (
     <div style={styles.container}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>AI Enabled Triaging</h1>
-      </div>
-
-      {/* JIRA Connection Section */}
+      {/* Connection Section */}
       <div style={styles.connectionSection}>
+        <h2>AI Provider Connections</h2>
+        
         <div style={styles.inputGroup}>
           <input
             type="password"
@@ -288,77 +249,16 @@ function AIEnabledTriaging() {
             style={styles.input}
           />
           <button
-            onClick={handleJiraConnect}
-            disabled={connecting}
+            onClick={() => handleJiraConnect()}
             style={{
               ...styles.button,
-              backgroundColor: isJiraConnected ? '#40c057' : '#4dabf7'
+              ...(isJiraConnected ? styles.connectedButton : {})
             }}
           >
-            {connecting ? 'Connecting...' : 'Connect to JIRA'}
+            {isJiraConnected ? 'Connected' : 'Connect to JIRA'}
           </button>
-          <button
-            onClick={handleClearJira}
-            disabled={connecting}
-            style={styles.clearButton}
-          >
-            Clear
-          </button>
-          <span
-            style={{
-              ...styles.statusIndicator,
-              backgroundColor: isJiraConnected ? '#d3f9d8' : '#ffe3e3',
-              color: isJiraConnected ? '#2b8a3e' : '#e03131'
-            }}
-          >
-            {isJiraConnected ? 'ON' : 'OFF'}
-          </span>
         </div>
-        {jiraError && <div style={styles.errorMessage}>{jiraError}</div>}
-      </div>
-
-      {/* ChatGPT Connection Section */}
-      <div style={styles.connectionSection}>
-        <div style={styles.inputGroup}>
-          <input
-            type="password"
-            placeholder="Enter ChatGPT API Key"
-            value={gptApiKey}
-            onChange={(e) => setGptApiKey(e.target.value)}
-            style={styles.input}
-          />
-          <button
-            onClick={handleGptConnect}
-            disabled={connecting}
-            style={{
-              ...styles.button,
-              backgroundColor: isGptConnected ? '#40c057' : '#4dabf7'
-            }}
-          >
-            {connecting ? 'Connecting...' : 'Connect to ChatGPT'}
-          </button>
-          <button
-            onClick={handleClearGpt}
-            disabled={connecting}
-            style={styles.clearButton}
-          >
-            Clear
-          </button>
-          <span
-            style={{
-              ...styles.statusIndicator,
-              backgroundColor: isGptConnected ? '#d3f9d8' : '#ffe3e3',
-              color: isGptConnected ? '#2b8a3e' : '#e03131'
-            }}
-          >
-            {isGptConnected ? 'ON' : 'OFF'}
-          </span>
-        </div>
-        {gptError && <div style={styles.errorMessage}>{gptError}</div>}
-      </div>
-
-      {/* VedAI Connection Section */}
-      <div style={styles.connectionSection}>
+        
         <div style={styles.inputGroup}>
           <input
             type="password"
@@ -368,68 +268,94 @@ function AIEnabledTriaging() {
             style={styles.input}
           />
           <button
-            onClick={handleVedaiConnect}
-            disabled={connecting}
+            onClick={() => handleVedaiConnect()}
             style={{
               ...styles.button,
-              backgroundColor: isVedaiConnected ? '#40c057' : '#4dabf7'
+              ...(isVedaiConnected ? styles.connectedButton : {})
             }}
           >
-            {connecting ? 'Connecting...' : 'Connect to VedAI'}
+            {isVedaiConnected ? 'Connected' : 'Connect to VedAI'}
           </button>
+        </div>
+        
+        <div style={styles.inputGroup}>
+          <input
+            type="password"
+            placeholder="Enter ChatGPT API Key"
+            value={chatgptApiKey}
+            onChange={(e) => setChatgptApiKey(e.target.value)}
+            style={styles.input}
+          />
           <button
-            onClick={handleClearVedai}
-            disabled={connecting}
-            style={styles.clearButton}
-          >
-            Clear
-          </button>
-          <span
+            onClick={() => handleChatgptConnect()}
             style={{
-              ...styles.statusIndicator,
-              backgroundColor: isVedaiConnected ? '#d3f9d8' : '#ffe3e3',
-              color: isVedaiConnected ? '#2b8a3e' : '#e03131'
+              ...styles.button,
+              ...(isChatgptConnected ? styles.connectedButton : {})
             }}
           >
-            {isVedaiConnected ? 'ON' : 'OFF'}
-          </span>
+            {isChatgptConnected ? 'Connected' : 'Connect to ChatGPT'}
+          </button>
         </div>
-        {vedaiError && <div style={styles.errorMessage}>{vedaiError}</div>}
       </div>
-
-      {/* Backend Logs Section */}
-      <div style={{...styles.connectionSection, marginTop: '2rem'}}>
-        <h2 style={{fontSize: '1.5rem', marginBottom: '1rem'}}>Backend Logs</h2>
-        <div style={{
-          maxHeight: '300px',
-          overflowY: 'auto',
-          backgroundColor: '#f8f9fa',
-          borderRadius: '8px',
-          padding: '1rem'
-        }}>
-          {backendLogs.length > 0 ? (
-            backendLogs.map((log, index) => (
-              <div
-                key={index}
-                style={{
-                  padding: '0.5rem',
-                  borderBottom: '1px solid #dee2e6',
-                  fontSize: '0.875rem',
-                  fontFamily: 'monospace'
-                }}
-              >
-                {log}
-              </div>
-            ))
-          ) : (
-            <div style={{color: '#868e96', fontStyle: 'italic'}}>
-              No logs available
-            </div>
-          )}
+      
+      {/* Analysis Section */}
+      <div style={styles.inputGroup}>
+        <input
+          type="text"
+          placeholder="Enter JIRA Number"
+          value={jiraNumber}
+          onChange={(e) => setJiraNumber(e.target.value)}
+          style={styles.input}
+        />
+        <button
+          onClick={handleAnalyze}
+          disabled={!isJiraConnected || !isChatgptConnected || !jiraNumber || isAnalyzing}
+          style={styles.button}
+        >
+          {isAnalyzing ? 'Analyzing...' : 'Triage with AI'}
+        </button>
+      </div>
+      
+      {error && <div style={styles.error}>{error}</div>}
+      
+      {/* JIRA Details Widget */}
+      {jiraDetails && (
+        <div style={styles.widget}>
+          <h3>JIRA Details</h3>
+          <div>
+            <p><strong>Title:</strong> {jiraDetails.title}</p>
+            <p><strong>Description:</strong> {jiraDetails.description}</p>
+            <p><strong>Labels:</strong> {jiraDetails.labels?.join(', ') || 'None'}</p>
+            <p><strong>Priority:</strong> {jiraDetails.priority}</p>
+          </div>
         </div>
+      )}
+      
+      {/* Triage Report Widget */}
+      {analysisResults && (
+        <div style={styles.widget}>
+          <h3>Triage Report</h3>
+          <div>
+            <input
+              type="text"
+              value={analysisResults}
+              onChange={(e) => setAnalysisResults(e.target.value)}
+              style={{ ...styles.input, width: '100%', marginBottom: '10px' }}
+            />
+            <button onClick={handleSaveAnalysis} style={styles.button}>
+              Save Analysis
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* Necessary Information Widget */}
+      <div style={styles.widget}>
+        <h3>Necessary Information</h3>
+        <p>This section will be implemented in future updates.</p>
       </div>
     </div>
   );
-}
+};
 
 export default AIEnabledTriaging; 
