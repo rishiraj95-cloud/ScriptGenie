@@ -20,6 +20,11 @@ const AIEnabledTriaging = () => {
   const [jiraDetails, setJiraDetails] = useState(null);
   const [analysisResults, setAnalysisResults] = useState(null);
   
+  // Add new state variables after existing state declarations
+  const [checklistResults, setChecklistResults] = useState(null);
+  const [isCheckingInfo, setIsCheckingInfo] = useState(false);
+  const [checklistError, setChecklistError] = useState('');
+  
   // Connection handlers defined before useEffect
   const handleJiraConnect = useCallback(async (key = jiraApiKey) => {
     try {
@@ -132,6 +137,34 @@ const AIEnabledTriaging = () => {
       color: 'red',
       marginTop: '5px',
     },
+    checklistContainer: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '15px',
+    },
+    checklistItem: {
+      padding: '10px',
+      backgroundColor: '#f8f9fa',
+      borderRadius: '4px',
+      border: '1px solid #dee2e6',
+    },
+    label: {
+      fontWeight: 'bold',
+      color: '#333',
+      marginBottom: '5px',
+      display: 'block',
+    },
+    content: {
+      marginLeft: '15px',
+    },
+    details: {
+      marginTop: '5px',
+      padding: '8px',
+      backgroundColor: '#fff',
+      borderRadius: '4px',
+      fontSize: '0.9em',
+      color: '#666',
+    }
   };
   
   // Analysis handlers
@@ -234,6 +267,36 @@ const AIEnabledTriaging = () => {
       setError('Failed to save analysis');
     }
   };
+  
+  // Add new function for checking necessary information
+  const checkNecessaryInfo = async () => {
+    if (!jiraNumber || !chatgptApiKey) return;
+    
+    setIsCheckingInfo(true);
+    setChecklistError('');
+    
+    try {
+      const response = await axios.post('http://localhost:8000/api/video/check-necessary-info', {
+        jira_key: jiraNumber,
+        api_key: jiraApiKey,
+        chatgpt_api_key: chatgptApiKey
+      });
+      
+      setChecklistResults(response.data);
+    } catch (err) {
+      console.error('Error checking necessary information:', err);
+      setChecklistError('Failed to check necessary information');
+    } finally {
+      setIsCheckingInfo(false);
+    }
+  };
+  
+  // Add useEffect to trigger necessary info check after analysis
+  useEffect(() => {
+    if (analysisResults && jiraDetails) {
+      checkNecessaryInfo();
+    }
+  }, [analysisResults, jiraDetails]);
   
   return (
     <div style={styles.container}>
@@ -348,7 +411,71 @@ const AIEnabledTriaging = () => {
       {/* Necessary Information Widget */}
       <div style={styles.widget}>
         <h3>Necessary Information</h3>
-        <p>This section will be implemented in future updates.</p>
+        {isCheckingInfo ? (
+          <p>Checking necessary information...</p>
+        ) : checklistError ? (
+          <div style={styles.error}>{checklistError}</div>
+        ) : checklistResults ? (
+          <div style={styles.checklistContainer}>
+            <div style={styles.checklistItem}>
+              <span style={styles.label}>Error Logs:</span>
+              <div style={styles.content}>
+                {checklistResults.errorLogs?.present ? (
+                  <>
+                    ✓ Found
+                    <div style={styles.details}>{checklistResults.errorLogs.content}</div>
+                  </>
+                ) : (
+                  '✗ Not Found'
+                )}
+              </div>
+            </div>
+
+            <div style={styles.checklistItem}>
+              <span style={styles.label}>Screenshots:</span>
+              <div style={styles.content}>
+                {checklistResults.screenshots?.present ? (
+                  <>
+                    ✓ Found
+                    <div style={styles.details}>{checklistResults.screenshots.content}</div>
+                  </>
+                ) : (
+                  '✗ Not Found'
+                )}
+              </div>
+            </div>
+
+            <div style={styles.checklistItem}>
+              <span style={styles.label}>Error Messages:</span>
+              <div style={styles.content}>
+                {checklistResults.errorMessages?.present ? (
+                  <>
+                    ✓ Found
+                    <div style={styles.details}>{checklistResults.errorMessages.content}</div>
+                  </>
+                ) : (
+                  '✗ Not Found'
+                )}
+              </div>
+            </div>
+
+            <div style={styles.checklistItem}>
+              <span style={styles.label}>Steps to Reproduce:</span>
+              <div style={styles.content}>
+                {checklistResults.reproductionSteps?.present ? (
+                  <>
+                    ✓ Found
+                    <div style={styles.details}>{checklistResults.reproductionSteps.content}</div>
+                  </>
+                ) : (
+                  '✗ Not Found'
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p>This section will be populated after issue analysis.</p>
+        )}
       </div>
     </div>
   );

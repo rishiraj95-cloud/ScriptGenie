@@ -1236,4 +1236,93 @@ async def analyze_issue(request: dict):
         print("[Debug] Full traceback:")
         import traceback
         print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/check-necessary-info")
+async def check_necessary_info(request: dict):
+    """Check for necessary information in a JIRA issue"""
+    try:
+        jira_key = request.get('jira_key', '').strip()
+        jira_api_key = request.get('api_key')
+        chatgpt_api_key = request.get('chatgpt_api_key', jira_api_key)
+        
+        if not all([jira_key, jira_api_key]):
+            raise HTTPException(status_code=400, detail="JIRA key and API key are required")
+        
+        # Get JIRA issue details
+        jira_helper = JiraHelper(jira_api_key)
+        issue_details = jira_helper.get_story_details(jira_key)
+        
+        if not issue_details:
+            raise HTTPException(status_code=404, detail=f"JIRA issue {jira_key} not found")
+        
+        # Prepare AI prompt
+        prompt = f"""
+        Analyze the following JIRA issue and check for the presence of necessary information.
+        For each category, indicate if the information is present and provide the relevant content found.
+
+        JIRA Title: {issue_details.get('title')}
+        Description: {issue_details.get('description')}
+
+        Check for the following categories:
+        1. Error Logs: Look for server logs, stack traces, or system errors
+        2. Screenshots: Check for attached or referenced screenshots
+        3. Error Messages: Find any UI or system error messages mentioned
+        4. Steps to Reproduce: Identify step-by-step reproduction instructions
+
+        For each category, respond with:
+        - Whether it is present (true/false)
+        - The actual content found (if any)
+
+        Format your response focusing only on these categories.
+        """
+        
+        # Get AI analysis
+        chatgpt_helper = ChatGPTHelper(chatgpt_api_key)
+        analysis = chatgpt_helper.generate_response([{
+            "role": "system",
+            "content": "You are a helpful assistant analyzing JIRA issues for necessary information."
+        }, {
+            "role": "user",
+            "content": prompt
+        }])
+        
+        # Parse AI response into structured format
+        try:
+            # Basic structure for response
+            results = {
+                "errorLogs": {"present": False, "content": ""},
+                "screenshots": {"present": False, "content": ""},
+                "errorMessages": {"present": False, "content": ""},
+                "reproductionSteps": {"present": False, "content": ""}
+            }
+            
+            # Update with AI analysis
+            # The actual parsing logic would depend on the AI response format
+            # This is a simplified version
+            for line in analysis.split('\n'):
+                if 'Error Logs:' in line:
+                    results['errorLogs']['present'] = 'found' in line.lower() or 'present' in line.lower()
+                    results['errorLogs']['content'] = line.split(':', 1)[1].strip() if ':' in line else ''
+                elif 'Screenshots:' in line:
+                    results['screenshots']['present'] = 'found' in line.lower() or 'present' in line.lower()
+                    results['screenshots']['content'] = line.split(':', 1)[1].strip() if ':' in line else ''
+                elif 'Error Messages:' in line:
+                    results['errorMessages']['present'] = 'found' in line.lower() or 'present' in line.lower()
+                    results['errorMessages']['content'] = line.split(':', 1)[1].strip() if ':' in line else ''
+                elif 'Steps to Reproduce:' in line:
+                    results['reproductionSteps']['present'] = 'found' in line.lower() or 'present' in line.lower()
+                    results['reproductionSteps']['content'] = line.split(':', 1)[1].strip() if ':' in line else ''
+            
+            return JSONResponse(
+                status_code=200,
+                content=results
+            )
+            
+        except Exception as e:
+            print(f"Error parsing AI response: {str(e)}")
+            raise HTTPException(status_code=500, detail="Failed to parse AI response")
+            
+    except Exception as e:
+        print(f"Error checking necessary information: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 
